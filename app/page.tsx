@@ -1,91 +1,67 @@
-import Image from 'next/image'
-import { Inter } from 'next/font/google'
-import styles from './page.module.css'
-
-const inter = Inter({ subsets: ['latin'] })
+import Sidebar from "@/components/sidebar";
+import Image from "next/image";
+import justinkuijpers from "@/images/justinkuijpers.png";
+import { FaTwitter } from "react-icons/fa";
+import { AiOutlineRise } from "react-icons/ai";
+import { BsArrowUpRight } from "react-icons/bs";
 
 export default function Home() {
   return (
-    <main className={styles.main}>
-      <div className={styles.description}>
-        <p>
-          Get started by editing&nbsp;
-          <code className={styles.code}>app/page.tsx</code>
+    <div className="flex mx-auto h-screen max-w-4xl mt-36">
+      <Sidebar />
+      <div className=" ">
+        <h1 className="text-3xl font-bold">Justin Kuijpers</h1>
+        <p className="max-w-md mt-5">
+          Hey, I'm Justin. I work as a SEA freelancer and digital marketer at
+          Axians. I <strong>love</strong> programming for the web.
         </p>
-        <div>
+        <div className="flex items-start  mt-7">
+          <Image
+            className=" rounded-full overflow-hidden"
+            src={justinkuijpers}
+            height={100}
+            width={100}
+          />
+          <div>
+            <div className="ml-5 mt-3">
+              <a
+                rel="noopener noreferrer"
+                target="_blank"
+                href="https://twitter.com/justinkuijpers"
+                className="flex items-center gap-2"
+              >
+                <FaTwitter />
+                159 tweets all-time
+              </a>
+            </div>
+            <div className="ml-5 mt-3">
+              <a
+                rel="noopener noreferrer"
+                href="/blog"
+                className="flex items-center gap-2"
+              >
+                <AiOutlineRise />
+                1.700 blog views all time
+              </a>
+            </div>
+          </div>
+        </div>
+        <p className="mt-7 max-w-md">
+          I'm passionate about frond-end development and have knowledge in React
+          & Next.js. Read my blog posts about marketing & growth or have a look
+          at my portfolio to look into things I have created.
+        </p>
+        <div className="flex items-center gap-2 mt-5 text-neutral-500 hover:text-neutral-800">
+          <BsArrowUpRight />
           <a
-            href="https://vercel.com?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-            target="_blank"
             rel="noopener noreferrer"
+            target="_blank"
+            href="https://twitter.com/justinkuijpers"
           >
-            By{' '}
-            <Image
-              src="/vercel.svg"
-              alt="Vercel Logo"
-              className={styles.vercelLogo}
-              width={100}
-              height={24}
-              priority
-            />
+            Follow me on Twitter
           </a>
         </div>
       </div>
-
-      <div className={styles.center}>
-        <Image
-          className={styles.logo}
-          src="/next.svg"
-          alt="Next.js Logo"
-          width={180}
-          height={37}
-          priority
-        />
-        <div className={styles.thirteen}>
-          <Image src="/thirteen.svg" alt="13" width={40} height={31} priority />
-        </div>
-      </div>
-
-      <div className={styles.grid}>
-        <a
-          href="https://beta.nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          className={styles.card}
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <h2 className={inter.className}>
-            Docs <span>-&gt;</span>
-          </h2>
-          <p className={inter.className}>
-            Find in-depth information about Next.js features and API.
-          </p>
-        </a>
-
-        <a
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          className={styles.card}
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <h2 className={inter.className}>
-            Templates <span>-&gt;</span>
-          </h2>
-          <p className={inter.className}>Explore the Next.js 13 playground.</p>
-        </a>
-
-        <a
-          href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          className={styles.card}
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <h2 className={inter.className}>
-            Deploy <span>-&gt;</span>
-          </h2>
-          <p className={inter.className}>
-            Instantly deploy your Next.js site to a shareable URL with Vercel.
-          </p>
-        </a>
-      </div>
-    </main>
-  )
+    </div>
+  );
 }
