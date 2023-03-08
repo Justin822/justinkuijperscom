@@ -49,7 +49,7 @@ export default function Home() {
         <p className="mt-7 max-w-md">
           I'm passionate about frond-end development and have knowledge in React
           & Next.js. Read my blog posts about marketing & growth or have a look
-          at my portfolio to look into things I have created
+          at my portfolio to see things I have created.
         </p>
         <div className="flex items-center gap-2 mt-5 text-neutral-500 hover:text-neutral-800">
           <BsArrowUpRight />
