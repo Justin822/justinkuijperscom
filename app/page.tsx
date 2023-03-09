@@ -10,7 +10,7 @@ export default function Home() {
     <div className="flex mx-auto h-screen max-w-4xl mt-36">
       <Sidebar />
       <div className=" ">
-        <h1 className="text-3xl font-bold">Justin Kuijpers</h1>
+        <h1 className="text-3xl font-bold font-mono">Justin Kuijpers</h1>
         <p className="max-w-md mt-5">
           Hey, I'm Justin. I work as a SEA freelancer and digital marketer at
           Axians. I <strong>love</strong> programming for the web.

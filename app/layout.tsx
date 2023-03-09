@@ -1,4 +1,11 @@
 import "./globals.css";
+import { Roboto_Mono } from "next/font/google";
+
+const roboto_mono = Roboto_Mono({
+  subsets: ["latin"],
+  variable: "--font-roboto-mono",
+  display: "swap",
+});
 
 export const metadata = {
   title: "Justin Kuijpers",
@@ -11,7 +18,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en">
+    <html lang="en" className={`${roboto_mono.variable}`}>
       <body>{children}</body>
     </html>
   );
