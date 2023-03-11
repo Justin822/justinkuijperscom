@@ -4,8 +4,17 @@ import justinkuijpers from "@/images/justinkuijpers.png";
 import { FaTwitter } from "react-icons/fa";
 import { AiOutlineRise } from "react-icons/ai";
 import { BsArrowUpRight } from "react-icons/bs";
+import { getTweetCount } from "@/lib/metrics";
 
-export default function Home() {
+export default async function Home() {
+  let tweetCount;
+
+  try {
+    [tweetCount] = await Promise.all([getTweetCount()]);
+  } catch (error) {
+    console.error(error);
+  }
+
   return (
     <div className="flex mx-auto h-screen max-w-4xl mt-36">
       <Sidebar />
@@ -21,6 +30,7 @@ export default function Home() {
             src={justinkuijpers}
             height={100}
             width={100}
+            priority
           />
           <div>
             <div className="ml-5 mt-3">
@@ -31,7 +41,7 @@ export default function Home() {
                 className="flex items-center gap-2"
               >
                 <FaTwitter />
-                159 tweets all-time
+                {tweetCount}
               </a>
             </div>
             <div className="ml-5 mt-3">
