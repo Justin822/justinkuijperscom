@@ -1,5 +1,6 @@
 import "./globals.css";
 import { Roboto_Mono } from "next/font/google";
+import { Analytics } from "@vercel/analytics/react";
 
 const roboto_mono = Roboto_Mono({
   subsets: ["latin"],
@@ -20,6 +21,7 @@ export default function RootLayout({
   return (
     <html lang="en" className={`${roboto_mono.variable}`}>
       <body>{children}</body>
+      <Analytics />
     </html>
   );
 }
