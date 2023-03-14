@@ -41,7 +41,7 @@ export default async function Home() {
                 className="flex items-center gap-2"
               >
                 <FaTwitter />
-                {tweetCount} tweets all time
+                {tweetCount} tweets all tim
               </a>
             </div>
             <div className="ml-5 mt-3">
