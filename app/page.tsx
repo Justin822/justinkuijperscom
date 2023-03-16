@@ -3,7 +3,7 @@ import Image from "next/image";
 import justinkuijpers from "@/images/justinkuijpers.png";
 import { FaTwitter } from "react-icons/fa";
 import { AiOutlineRise } from "react-icons/ai";
-import { BsArrowUpRight } from "react-icons/bs";
+import { BsArrowUpRight, BsFillStarFill } from "react-icons/bs";
 import { getTweetCount } from "@/lib/metrics";
 
 export default async function Home() {
@@ -50,7 +50,7 @@ export default async function Home() {
                 href="/blog"
                 className="flex items-center gap-2"
               >
-                <AiOutlineRise />
+                <BsFillStarFill />
                 1.700 blog views all time
               </a>
             </div>
