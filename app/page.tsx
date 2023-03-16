@@ -5,6 +5,7 @@ import { FaTwitter } from "react-icons/fa";
 import { AiOutlineRise } from "react-icons/ai";
 import { BsArrowUpRight, BsFillStarFill } from "react-icons/bs";
 import { getTweetCount } from "@/lib/metrics";
+import Link from "next/link";
 
 export default async function Home() {
   let tweetCount;
@@ -51,7 +52,7 @@ export default async function Home() {
                 className="flex items-center gap-2"
               >
                 <BsFillStarFill />
-                1.700 blog views all time
+                Featured: <Link href="/blog">How to write an SEO outline</Link>
               </a>
             </div>
           </div>
