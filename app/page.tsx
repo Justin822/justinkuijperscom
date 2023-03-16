@@ -52,7 +52,7 @@ export default async function Home() {
                 className="flex items-center gap-2"
               >
                 <BsFillStarFill />
-                Featured: How to create an SEO outline
+                Featured: How to write an SEO outline
               </a>
             </div>
           </div>
