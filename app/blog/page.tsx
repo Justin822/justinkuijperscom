@@ -1,3 +1,9 @@
+import Content from "../(content)/hello.mdx";
+
 export default function Blog() {
-  return <div>coming soon!</div>;
+  return (
+    <div>
+      <Content />
+    </div>
+  );
 }
