@@ -17,7 +17,7 @@ const PostLayout = ({ params }: { params: { slug: string } }) => {
   const post = allPosts.find((post) => post._raw.flattenedPath === params.slug);
 
   const JustinImage = (props: any) => (
-    <Image {...props} src={props.src} alt={props.alt} />
+    <Image {...props} src={justinkuijpers} alt={props.alt} />
   );
 
   let MDXContent;
