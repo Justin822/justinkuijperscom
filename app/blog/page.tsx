@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { allPosts, Post } from "contentlayer/generated";
 import { compareDesc, format, parseISO } from "date-fns";
+import Sidebar from "@/components/sidebar";
 
 function PostCard(post: Post) {
   return (
@@ -22,7 +23,8 @@ function page() {
   );
 
   return (
-    <div>
+    <div className="flex mx-auto h-screen max-w-4xl mt-36">
+      <Sidebar />
       <div>
         {posts.map((post, idx) => (
           <PostCard key={idx} {...post} />
