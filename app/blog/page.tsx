@@ -5,7 +5,7 @@ import Sidebar from "@/components/sidebar";
 
 function PostCard(post: Post) {
   return (
-    <div className="p-2  w-96">
+    <div className="py-2 w-96 ">
       <h2 className=" font-medium text-lg">
         <Link href={post.url} legacyBehavior>
           {post.title}
