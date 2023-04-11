@@ -2,5 +2,6 @@
 
 import helloworldMdx from './helloworld.mdx.json'
 import helloworld2Mdx from './Helloworld2.mdx.json'
+import helloworld3Mdx from './helloworld3.mdx.json'
 
-export const allPosts = [helloworldMdx, helloworld2Mdx]
+export const allPosts = [helloworldMdx, helloworld2Mdx, helloworld3Mdx]
