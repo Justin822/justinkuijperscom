@@ -5,14 +5,15 @@ import Sidebar from "@/components/sidebar";
 
 function PostCard(post: Post) {
   return (
-    <div>
-      <h2>
+    <div className="p-2  w-96">
+      <h2 className=" font-medium text-lg">
         <Link href={post.url} legacyBehavior>
           {post.title}
         </Link>
       </h2>
-      <p>{post.description}</p>
-      <p>{format(parseISO(post.date), "LLLL d, yyyy")}</p>
+      <p className="font-light">
+        {format(parseISO(post.date), "LLLL d, yyyy")}
+      </p>
     </div>
   );
 }
@@ -26,6 +27,7 @@ function page() {
     <div className="flex mx-auto h-screen max-w-4xl mt-36">
       <Sidebar />
       <div>
+        <h1 className="text-3xl font-bold font-mono mb-2">Blog</h1>
         {posts.map((post, idx) => (
           <PostCard key={idx} {...post} />
         ))}
