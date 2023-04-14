@@ -48,7 +48,7 @@ export default async function Home() {
             <div className="ml-5 mt-3">
               <a
                 rel="noopener noreferrer"
-                href="/blog/How-to-write-an-content-outline-for-SEO-in-2023"
+                href="/blog/How-to-write-a-content-outline-for-SEO-in-2023"
                 className="flex items-center gap-2"
               >
                 <BsFillStarFill />
