@@ -4,10 +4,10 @@ import Link from "next/link";
 
 export default function Sidebar() {
   return (
-    <div className="  w-36">
+    <div className="  w-36 mb-4">
       <Image src={logo} width={25} height={37} alt="Justin Kuijpers logo " />
 
-      <nav className="flex flex-col mt-4">
+      <nav className="flex md:flex-col gap-3 mt-4 ">
         <div className="w-16 h-8 text-neutral-500 hover:text-neutral-800 hover:bg-slate-100">
           <Link href="/">Home</Link>
         </div>

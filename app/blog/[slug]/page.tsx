@@ -30,7 +30,7 @@ const PostLayout = ({ params }: { params: { slug: string } }) => {
   }
 
   return (
-    <div className="flex mx-auto h-screen max-w-4xl mt-36">
+    <div className="md:flex  h-screen max-w-4xl mt-5 md:mt-36 ml-5 md:mx-auto">
       <Sidebar />
       <div>
         <h1 className="text-3xl font-bold font-mono mb-2">{post.title}</h1>
