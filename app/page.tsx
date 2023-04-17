@@ -31,6 +31,7 @@ export default async function Home() {
             src={justinkuijpers}
             height={100}
             width={100}
+            alt="Justin Kuijpers"
             priority
           />
           <div>
