@@ -1,4 +1,32 @@
+import WorkTimeline from "@/components/WorkTimeline";
 import Sidebar from "@/components/sidebar";
+
+const workPlaces = [
+  {
+    company: "Axians",
+    position:
+      "Working as a online marketer. Responsible for SEO, SEA and paid advertising",
+    duration: "2020-now",
+  },
+  {
+    company: "KPN",
+    position:
+      "Working as a online marketer. Responsible for SEO, SEA and paid advertising",
+    duration: "2014-2020",
+  },
+  {
+    company: "Axians",
+    position:
+      "Working as a online marketer. Responsible for SEO, SEA and paid advertising",
+    duration: "2020-now",
+  },
+  {
+    company: "KPN",
+    position:
+      "Working as a online marketer. Responsible for SEO, SEA and paid advertising",
+    duration: "2014-2020",
+  },
+];
 
 export default function About() {
   return (
@@ -6,7 +34,7 @@ export default function About() {
       <Sidebar />
       <div className=" ">
         <h1 className="text-3xl font-bold font-mono">About Justin</h1>
-        <p className="max-w-md mt-5">About page coming soon!</p>
+        <WorkTimeline workPlaces={workPlaces} />
       </div>
     </div>
   );
