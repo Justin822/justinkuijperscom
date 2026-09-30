@@ -36,3 +36,17 @@ You can check out [the Next.js GitHub repository](https://github.com/vercel/next
 The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
 
 Check out our [Next.js deployment documentation](https://nextjs.org/docs/deployment) for more details.
+
+## Ranking the Stars (teamspel)
+
+Spelshow-app op `/rankingthestars` (optioneel ook via een subdomein `rankingthestars.` of `rts.`, zie `middleware.ts`).
+
+- `/rankingthestars`: collega's rangschikken per vraag alle 12 collega's en vertellen het verhaal achter hun nummer 1.
+- `/rankingthestars/host`: regiekamer (pincode): wie heeft gestemd, stembus open/dicht, stem resetten.
+- `/rankingthestars/show`: de uitslag op het grote scherm (spatie/→ volgende, ← terug, F volledig scherm, M geluid). Met `?demo=1` draait een generale repetitie op nepdata.
+
+Setup op Vercel:
+
+1. Voeg **Upstash Redis** toe aan het project (Storage / Marketplace). Dat zet `KV_REST_API_URL` en `KV_REST_API_TOKEN` (of `UPSTASH_REDIS_REST_URL`/`_TOKEN`). Zonder database worden stemmen alleen tijdelijk bewaard.
+2. Zet de env-variabele `RTS_ADMIN_PIN` (pincode voor regiekamer en show) en redeploy. Lokaal is de pincode `1234`.
+3. Namen en vragen staan in `lib/rankingthestars/config.ts`. Pas alleen `name` aan, laat de `id` staan. Foto's kunnen in `public/rts-photos/`.
