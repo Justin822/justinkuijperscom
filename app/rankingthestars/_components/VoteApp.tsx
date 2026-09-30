@@ -300,7 +300,7 @@ export default function VoteApp() {
 
   const progress = (
     <div className="rts-topbar">
-      <button className="rts-link rts-display" style={{ textDecoration: "none", fontSize: 13, whiteSpace: "nowrap" }} onClick={() => setPhase("who")}>
+      <button className="rts-link rts-display rts-topbar__name" style={{ textDecoration: "none", fontSize: 13 }} onClick={() => setPhase("who")}>
         ⭐ {meName}
       </button>
       <nav className="rts-progress" aria-label="Vragen">
@@ -318,7 +318,7 @@ export default function VoteApp() {
           </button>
         ))}
       </nav>
-      <span style={{ fontSize: 13, color: "var(--muted)", whiteSpace: "nowrap" }}>
+      <span className="rts-topbar__count" style={{ fontSize: 13, color: "var(--muted)", whiteSpace: "nowrap" }}>
         {completeCount}/{QUESTIONS.length}
       </span>
     </div>

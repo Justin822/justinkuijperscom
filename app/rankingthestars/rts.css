@@ -434,6 +434,14 @@
   border-bottom: 1px solid var(--line);
 }
 
+.rts-topbar__name {
+  min-width: 0;
+  max-width: 34%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .rts-progress {
   display: flex;
   flex-wrap: wrap;
@@ -470,9 +478,20 @@
 }
 
 @media (max-width: 480px) {
+  .rts-progress {
+    flex-wrap: nowrap;
+    gap: 0;
+  }
+
   .rts-progress button {
-    width: 19px;
-    font-size: 15px;
+    width: 16px;
+    font-size: 14px;
+  }
+}
+
+@media (max-width: 400px) {
+  .rts-topbar__count {
+    display: none;
   }
 }
 
