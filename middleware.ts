@@ -1,17 +1,60 @@
 import { NextRequest, NextResponse } from "next/server";
+import { ACCESS_COOKIE, ACCESS_MAX_AGE, accessToken, teamCode } from "@/lib/rankingthestars/access";
 
-// Maakt Ranking the Stars ook bereikbaar via een subdomein,
-// bijvoorbeeld rankingthestars.justinkuijpers.com of rts.justinkuijpers.com.
-export function middleware(request: NextRequest) {
-  const host = request.headers.get("host") || "";
-  if (!/^(rankingthestars|rts)\./i.test(host)) return NextResponse.next();
+// Ranking the Stars:
+// 1. Subdomein (rankingthestars.… of rts.…) wordt doorgestuurd naar /rankingthestars.
+// 2. Alles van het spel (pagina's, API, foto's) zit achter de teamcode (RTS_TEAM_CODE).
 
+const PROTECTED = /^\/(rankingthestars|api\/rankingthestars|rts-photos)(\/|$)/;
+const OPEN = ["/api/rankingthestars/login", "/rankingthestars/toegang"];
+
+export async function middleware(request: NextRequest) {
   const url = request.nextUrl.clone();
-  if (url.pathname.startsWith("/rankingthestars")) return NextResponse.next();
-  url.pathname = "/rankingthestars" + (url.pathname === "/" ? "" : url.pathname);
+  let rewritten = false;
+
+  const host = request.headers.get("host") || "";
+  if (
+    /^(rankingthestars|rts)\./i.test(host) &&
+    !/^\/(rankingthestars|api|rts-photos)(\/|$)/.test(url.pathname)
+  ) {
+    url.pathname = "/rankingthestars" + (url.pathname === "/" ? "" : url.pathname);
+    rewritten = true;
+  }
+
+  const pass = () => (rewritten ? NextResponse.rewrite(url) : NextResponse.next());
+  if (!PROTECTED.test(url.pathname) || OPEN.includes(url.pathname)) return pass();
+
+  const code = teamCode();
+  const expected = code ? await accessToken(code) : null;
+
+  // Link met ?code=… logt direct in en haalt de code daarna uit de adresbalk.
+  const urlCode = request.nextUrl.searchParams.get("code");
+  if (expected && urlCode && (await accessToken(urlCode)) === expected) {
+    const clean = request.nextUrl.clone();
+    clean.searchParams.delete("code");
+    const response = NextResponse.redirect(clean);
+    response.cookies.set(ACCESS_COOKIE, expected, {
+      httpOnly: true,
+      sameSite: "lax",
+      secure: clean.protocol === "https:",
+      maxAge: ACCESS_MAX_AGE,
+      path: "/",
+    });
+    return response;
+  }
+
+  if (expected && request.cookies.get(ACCESS_COOKIE)?.value === expected) return pass();
+
+  if (url.pathname.startsWith("/api/")) {
+    return NextResponse.json({ error: "Vul eerst de teamcode in." }, { status: 401 });
+  }
+  if (url.pathname.startsWith("/rts-photos")) {
+    return new NextResponse("Niet gevonden", { status: 404 });
+  }
+  url.pathname = "/rankingthestars/toegang";
   return NextResponse.rewrite(url);
 }
 
 export const config = {
-  matcher: ["/((?!api|_next|rts-photos|favicon.ico).*)"],
+  matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],
 };

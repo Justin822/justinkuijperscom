@@ -1,21 +1,12 @@
 // Ranking the Stars: spelers en vragen.
+// Alleen server-side gebruiken: de pagina's geven deze gegevens pas door na de teamcode.
 // Namen aanpassen? Verander alleen `name` (en eventueel `photo`), laat de `id` staan.
 // Een foto zet je in /public/rts-photos/ en verwijs je als "/rts-photos/naam.jpg".
 
-export type Player = {
-  id: string;
-  name: string;
-  photo?: string;
-};
+import type { Player, Question } from "./types";
 
-export type Category = "kantoor" | "prive" | "extreem";
-
-export type Question = {
-  id: string;
-  category: Category;
-  question: string;
-  storyPrompt: string;
-};
+export { CATEGORIES, STORY_MAX } from "./types";
+export type { Category, Player, Question } from "./types";
 
 export const PLAYERS: Player[] = [
   { id: "p1", name: "Collega 1" },
@@ -106,14 +97,6 @@ export const QUESTIONS: Question[] = [
     storyPrompt: "Voor welk vergrijp?",
   },
 ];
-
-export const CATEGORIES: Record<Category, { label: string; emoji: string; color: string }> = {
-  kantoor: { label: "Op kantoor", emoji: "💼", color: "#27e1ff" },
-  prive: { label: "Thuis & privé", emoji: "🏠", color: "#b98cff" },
-  extreem: { label: "Extreem", emoji: "🌶️", color: "#ff2e88" },
-};
-
-export const STORY_MAX = 600;
 
 export function playerById(id: string): Player | undefined {
   return PLAYERS.find((p) => p.id === id);

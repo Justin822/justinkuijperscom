@@ -1,6 +1,7 @@
 import { createHash, timingSafeEqual } from "crypto";
 import { NextResponse } from "next/server";
 import { PLAYERS, QUESTIONS } from "@/lib/rankingthestars/config";
+import { teamCode } from "@/lib/rankingthestars/access";
 import { computeResults, makeDemoBallots } from "@/lib/rankingthestars/results";
 import {
   deleteSubmission,
@@ -47,6 +48,7 @@ export async function POST(request: Request) {
         return NextResponse.json({
           votingOpen: state.votingOpen,
           storage: storageKind,
+          teamCode: teamCode(),
           persistent: storageKind === "redis" || !process.env.VERCEL,
           submissions: subs.map((s) => ({
             playerId: s.playerId,

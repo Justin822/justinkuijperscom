@@ -48,5 +48,7 @@ Spelshow-app op `/rankingthestars` (optioneel ook via een subdomein `rankingthes
 Setup op Vercel:
 
 1. Voeg **Upstash Redis** toe aan het project (Storage / Marketplace). Dat zet `KV_REST_API_URL` en `KV_REST_API_TOKEN` (of `UPSTASH_REDIS_REST_URL`/`_TOKEN`). Zonder database worden stemmen alleen tijdelijk bewaard.
-2. Zet de env-variabele `RTS_ADMIN_PIN` (pincode voor regiekamer en show) en redeploy. Lokaal is de pincode `1234`.
-3. Namen en vragen staan in `lib/rankingthestars/config.ts`. Pas alleen `name` aan, laat de `id` staan. Foto's kunnen in `public/rts-photos/`.
+2. Zet de env-variabelen en redeploy:
+   - `RTS_TEAM_CODE`: teamcode waarmee collega's het spel openen (hoofdletterongevoelig). Zonder teamcode ziet een bezoeker alleen een inlogscherm, geen namen of vragen. Lokaal is de code `sterren`.
+   - `RTS_ADMIN_PIN`: pincode voor regiekamer en show. Lokaal is de pincode `1234`.
+3. Namen en vragen staan in `lib/rankingthestars/config.ts` (alleen server-side; ze gaan pas na de teamcode naar de browser). Pas alleen `name` aan, laat de `id` staan. Foto's kunnen in `public/rts-photos/`.

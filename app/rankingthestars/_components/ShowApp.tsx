@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { CATEGORIES, PLAYERS, QUESTIONS, playerById, type Player } from "@/lib/rankingthestars/config";
+import { CATEGORIES, type Player } from "@/lib/rankingthestars/types";
+import { useGame } from "./GameContext";
 import type { Results } from "@/lib/rankingthestars/results";
 import Avatar from "./Avatar";
 import Confetti from "./Confetti";
@@ -43,8 +44,6 @@ function revealPlan(count: number): RevealStep[] {
 }
 
 const nl1 = (n: number) => n.toLocaleString("nl-NL", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
-const nameOf = (id: string) => playerById(id)?.name || "?";
-const questionById = (id: string) => QUESTIONS.find((q) => q.id === id);
 
 const AWARDS: Record<AwardKey, { trophy: string; title: string }> = {
   selfAware: { trophy: "🧘", title: "De Zelfkennis-award" },
@@ -53,6 +52,7 @@ const AWARDS: Record<AwardKey, { trophy: string; title: string }> = {
 };
 
 export default function ShowApp() {
+  const { QUESTIONS } = useGame();
   const [pin, setPinState] = useState("");
   const [demo, setDemo] = useState(false);
   const [results, setResults] = useState<Results | null>(null);
@@ -255,6 +255,8 @@ export default function ShowApp() {
 }
 
 function SlideView({ slide, step, results }: { slide: Slide; step: number; results: Results }) {
+  const { PLAYERS, QUESTIONS, playerById, questionById } = useGame();
+  const nameOf = (id: string) => playerById(id)?.name || "?";
   switch (slide.kind) {
     case "welcome":
       return (
@@ -494,6 +496,7 @@ function RankBoard({
   step: number;
   spotlight: React.ReactNode;
 }) {
+  const { playerById } = useGame();
   const current = plan[Math.min(step, plan.length - 1)];
   const previous = plan[Math.max(0, step - 1)];
   const perColumn = rows.length > 6 ? Math.ceil(rows.length / 2) : rows.length;

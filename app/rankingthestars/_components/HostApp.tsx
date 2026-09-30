@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { PLAYERS, QUESTIONS } from "@/lib/rankingthestars/config";
+import { useGame } from "./GameContext";
 import Avatar from "./Avatar";
 import Logo from "./Logo";
 import PinGate from "./PinGate";
@@ -11,6 +11,7 @@ type Overview = {
   votingOpen: boolean;
   storage: "redis" | "file";
   persistent: boolean;
+  teamCode: string;
   submissions: { playerId: string; updatedAt: number; stories: number }[];
 };
 
@@ -21,6 +22,7 @@ const timeFormat = new Intl.DateTimeFormat("nl-NL", {
 });
 
 export default function HostApp() {
+  const { PLAYERS, QUESTIONS } = useGame();
   const [pin, setPinState] = useState<string>("");
   const [ready, setReady] = useState(false);
   const [overview, setOverview] = useState<Overview | null>(null);
@@ -76,7 +78,9 @@ export default function HostApp() {
   const playerLink =
     typeof window === "undefined"
       ? ""
-      : window.location.origin + (window.location.pathname.startsWith("/rankingthestars") ? "/rankingthestars" : "/");
+      : window.location.origin +
+        (window.location.pathname.startsWith("/rankingthestars") ? "/rankingthestars" : "/") +
+        (overview.teamCode ? `?code=${encodeURIComponent(overview.teamCode)}` : "");
 
   return (
     <main className="rts-wrap" style={{ paddingTop: 28 }}>
@@ -187,6 +191,16 @@ export default function HostApp() {
         <h2 className="rts-display" style={{ fontSize: 18 }}>
           Link voor collega&apos;s
         </h2>
+        <p style={{ color: "var(--muted)", fontSize: 14, marginTop: 6 }}>
+          {overview.teamCode ? (
+            <>
+              Teamcode: <strong style={{ color: "var(--gold)", letterSpacing: "0.08em" }}>{overview.teamCode}</strong>.
+              Met deze link zijn collega&apos;s meteen binnen, zonder de code te hoeven typen.
+            </>
+          ) : (
+            <>Er is nog geen teamcode ingesteld (RTS_TEAM_CODE), dus niemand komt binnen.</>
+          )}
+        </p>
         <div style={{ display: "flex", gap: 10, marginTop: 10, flexWrap: "wrap" }}>
           <input className="rts-input" readOnly value={playerLink} style={{ flex: "1 1 240px" }} />
           <button
