@@ -1,6 +1,6 @@
 import { createHash } from "crypto";
 import { NextResponse } from "next/server";
-import { PLAYERS, QUESTIONS, STORY_MAX } from "@/lib/rankingthestars/config";
+import { PLAYERS, QUESTIONS, STORY_MAX, STORY_MIN } from "@/lib/rankingthestars/config";
 import { isValidTop } from "@/lib/rankingthestars/results";
 import { getState, getSubmission, saveSubmission } from "@/lib/rankingthestars/store";
 
@@ -34,10 +34,11 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Niet bij alle vragen is een top 3 gekozen." }, { status: 400 });
     }
     cleanRankings[q.id] = order;
-    const story = stories?.[q.id];
-    if (typeof story === "string" && story.trim()) {
-      cleanStories[q.id] = story.trim().slice(0, STORY_MAX);
+    const story = typeof stories?.[q.id] === "string" ? stories[q.id].trim() : "";
+    if (story.length < STORY_MIN) {
+      return NextResponse.json({ error: "Vul bij elke vraag het verhaal in." }, { status: 400 });
     }
+    cleanStories[q.id] = story.slice(0, STORY_MAX);
   }
 
   try {

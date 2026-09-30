@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { CATEGORIES, POINTS, STORY_MAX, TOP_N } from "@/lib/rankingthestars/types";
+import { CATEGORIES, POINTS, STORY_MAX, STORY_MIN, TOP_N } from "@/lib/rankingthestars/types";
 import { useGame } from "./GameContext";
 import Avatar from "./Avatar";
 import Confetti from "./Confetti";
@@ -64,7 +64,8 @@ function saveDraft(playerId: string, draft: Draft) {
 
 export default function VoteApp() {
   const { PLAYERS, QUESTIONS, playerById } = useGame();
-  const isComplete = (d: Draft, qid: string) => (d.rankings[qid] || []).length === TOP_N;
+  const storyDone = (d: Draft, qid: string) => (d.stories[qid] || "").trim().length >= STORY_MIN;
+  const isComplete = (d: Draft, qid: string) => (d.rankings[qid] || []).length === TOP_N && storyDone(d, qid);
   const [phase, setPhase] = useState<Phase>("loading");
   const [status, setStatus] = useState<Status | null>(null);
   const [me, setMe] = useState<string | null>(null);
@@ -220,7 +221,7 @@ export default function VoteApp() {
             <li>
               <b>3</b>
               <span>
-                Vertel het verhaal achter je nummer 1. Anoniem, maar het komt wél op het grote scherm. 🤫
+                Vertel bij elke vraag het verhaal achter je nummer 1. Anoniem, maar het komt wél op het grote scherm. 🤫
               </span>
             </li>
           </ol>
@@ -256,7 +257,7 @@ export default function VoteApp() {
           <h1 className="rts-display" style={{ fontSize: "clamp(1.8rem, 6vw, 2.6rem)", marginTop: 24 }}>
             Wie ben jij?
           </h1>
-          <p style={{ color: "var(--muted)", marginTop: 6 }}>Tik op je eigen naam. Geen valsspelen hè.</p>
+          <p style={{ color: "var(--muted)", marginTop: 6 }}>Tik op je eigen naam.</p>
         </div>
         <div className="rts-players" style={{ marginTop: 24 }}>
           {PLAYERS.map((p, i) => (
@@ -340,7 +341,7 @@ export default function VoteApp() {
         <div style={{ display: "grid", gap: 10, marginTop: 20 }}>
           {QUESTIONS.map((q, i) => {
             const order = draft.rankings[q.id] || [];
-            const done = order.length === TOP_N;
+            const done = isComplete(draft, q.id);
             const story = draft.stories[q.id];
             return (
               <button
@@ -422,7 +423,8 @@ export default function VoteApp() {
 
   // Vraagscherm
   const category = CATEGORIES[question.category];
-  const complete = ranking.length === TOP_N;
+  const rankingDone = ranking.length === TOP_N;
+  const complete = rankingDone && storyDone(draft, question.id);
   const number1 = ranking[0] ? playerById(ranking[0]) : null;
   const story = draft.stories[question.id] || "";
 
@@ -547,7 +549,9 @@ export default function VoteApp() {
           }
         />
         <div style={{ textAlign: "right", fontSize: 12, color: "var(--muted)", marginTop: 4 }}>
-          {story.length}/{STORY_MAX} · optioneel, maar wel leuk
+          {story.trim().length < STORY_MIN
+            ? `Verplicht · nog ${STORY_MIN - story.trim().length} ${STORY_MIN - story.trim().length === 1 ? "teken" : "tekens"}`
+            : `${story.length}/${STORY_MAX} ✓`}
         </div>
       </section>
 
@@ -577,7 +581,9 @@ export default function VoteApp() {
               ? qIndex === QUESTIONS.length - 1 || allComplete
                 ? "Naar overzicht →"
                 : "Volgende →"
-              : `Nog ${TOP_N - ranking.length} te kiezen`}
+              : !rankingDone
+                ? `Nog ${TOP_N - ranking.length} te kiezen`
+                : "Vul het verhaal in"}
           </button>
         </div>
       </div>

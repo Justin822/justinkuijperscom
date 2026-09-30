@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { CATEGORIES, type Player } from "@/lib/rankingthestars/types";
+import { CATEGORIES, STORY_MAX, type Player } from "@/lib/rankingthestars/types";
 import { useGame } from "./GameContext";
 import type { Results } from "@/lib/rankingthestars/results";
 import Avatar from "./Avatar";
@@ -26,7 +26,6 @@ type Slide =
 type RevealStep = { from: number; drum?: boolean };
 
 const MAX_QUOTES = 6;
-const QUOTE_MAX_CHARS = 280;
 
 // Onthullingsvolgorde van onder naar boven: per drie, dan 3, 2, tromgeroffel, 1.
 function revealPlan(count: number): RevealStep[] {
@@ -354,7 +353,9 @@ function SlideView({ slide, step, results }: { slide: Slide; step: number; resul
       const qr = results.questions[slide.qi];
       const quotes = qr.stories.slice(0, MAX_QUOTES);
       const shown = quotes.slice(0, step);
-      const long = quotes.reduce((sum, s) => sum + Math.min(s.text.length, QUOTE_MAX_CHARS), 0) > 900;
+      // Hoe meer tekst, hoe kleiner de letter, zodat alle verhalen passen.
+      const total = quotes.reduce((sum, s) => sum + Math.min(s.text.length, STORY_MAX), 0);
+      const quoteSize = total > 1100 ? "0.72em" : total > 700 ? "0.85em" : "1em";
       return (
         <>
           <div className="show-enter">
@@ -365,10 +366,10 @@ function SlideView({ slide, step, results }: { slide: Slide; step: number; resul
               {q.question}
             </p>
           </div>
-          <div className="quotes" style={{ fontSize: long ? "0.85em" : "1em" }}>
+          <div className="quotes" style={{ fontSize: quoteSize }}>
             {shown.map((s, i) => {
               const about = playerById(s.aboutId);
-              const text = s.text.length > QUOTE_MAX_CHARS ? s.text.slice(0, QUOTE_MAX_CHARS) + "…" : s.text;
+              const text = s.text.slice(0, STORY_MAX);
               return (
                 <div key={i} className="quote">
                   <div className="quote__text">“{text}”</div>
