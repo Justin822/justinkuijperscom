@@ -11,7 +11,7 @@ import PinGate from "./PinGate";
 import { adminCall, getPin, setPin } from "./admin";
 import { ding, drumroll, setMuted, tada, whoosh } from "./sound";
 
-type AwardKey = "selfAware" | "denial" | "ego";
+type AwardKey = "star" | "denial" | "ego";
 
 type Slide =
   | { kind: "welcome" }
@@ -43,12 +43,12 @@ function revealPlan(count: number): RevealStep[] {
   return plan;
 }
 
-const nl1 = (n: number) => n.toLocaleString("nl-NL", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+const pts = (n: number) => `${n} ${n === 1 ? "punt" : "punten"}`;
 
 const AWARDS: Record<AwardKey, { trophy: string; title: string }> = {
-  selfAware: { trophy: "🧘", title: "De Zelfkennis-award" },
+  star: { trophy: "🌟", title: "Ster van de avond" },
   denial: { trophy: "🙈", title: "Ontkenning van de avond" },
-  ego: { trophy: "🪞", title: "De Zelfspot-award" },
+  ego: { trophy: "🪞", title: "Ster in eigen ogen" },
 };
 
 export default function ShowApp() {
@@ -91,10 +91,11 @@ export default function ShowApp() {
     if (!results.voters) return [{ kind: "welcome" }, { kind: "empty" }];
     const list: Slide[] = [{ kind: "welcome" }];
     results.questions.forEach((qr, qi) => {
+      if (!qr.ranking.length) return;
       list.push({ kind: "question", qi }, { kind: "board", qi });
       if (qr.stories.length) list.push({ kind: "stories", qi });
     });
-    (["selfAware", "denial", "ego"] as AwardKey[]).forEach((award) => {
+    (["denial", "ego", "star"] as AwardKey[]).forEach((award) => {
       if (results.awards[award]) list.push({ kind: "award", award });
     });
     if (results.leaderboard.length) list.push({ kind: "finale" });
@@ -328,7 +329,7 @@ function SlideView({ slide, step, results }: { slide: Slide; step: number; resul
           rows={qr.ranking.map((r) => ({
             id: r.id,
             rank: r.rank,
-            meta: `gem. plek ${nl1(r.avg)}`,
+            meta: r.firstVotes ? `${pts(r.points)} · ${r.firstVotes}× #1` : pts(r.points),
           }))}
           plan={plan}
           step={step}
@@ -339,8 +340,8 @@ function SlideView({ slide, step, results }: { slide: Slide; step: number; resul
               title={q.question}
               subtitle={
                 winner.firstVotes
-                  ? `${winner.firstVotes} van de ${qr.voters} zetten ${nameOf(winner.id)} op nummer 1`
-                  : `gemiddeld op plek ${nl1(winner.avg)}`
+                  ? `${winner.firstVotes} van de ${qr.voters} zetten ${nameOf(winner.id)} op nummer 1 · ${pts(winner.points)}`
+                  : pts(winner.points)
               }
             />
           }
@@ -389,13 +390,12 @@ function SlideView({ slide, step, results }: { slide: Slide; step: number; resul
       const award = results.awards[slide.award]!;
       const q = "questionId" in award ? questionById(award.questionId) : undefined;
       let teaser = "";
-      if (slide.award === "selfAware" && "avgGap" in award) {
-        teaser = `Voor de ster die zichzelf het eerlijkst inschat: gemiddeld maar ${nl1(award.avgGap)} plek naast het oordeel van de groep.`;
-      } else if ("selfRank" in award && q) {
-        teaser =
-          slide.award === "denial"
-            ? `Bij “${q.question}” zette deze ster zichzelf op #${award.selfRank}… maar de groep zette hem/haar op #${award.groupRank}!`
-            : `Bij “${q.question}” zette deze ster zichzelf op #${award.selfRank}. De groep vond dat maar #${award.groupRank}.`;
+      if (slide.award === "star" && "points" in award) {
+        teaser = `Voor de collega die over alle vragen samen de meeste punten binnensleepte: ${pts(award.points)}. Of dat een compliment is? Dat laten we in het midden.`;
+      } else if (slide.award === "denial" && q && "points" in award) {
+        teaser = `Won “${q.question}” met ${pts(award.points)}… maar zette zichzelf niet eens in de eigen top 3!`;
+      } else if (slide.award === "ego" && "count" in award) {
+        teaser = `Voor de collega die zichzelf het vaakst in de eigen top 3 zette: ${award.count} keer. Eerlijk is eerlijk.`;
       }
       return (
         <>
@@ -425,8 +425,8 @@ function SlideView({ slide, step, results }: { slide: Slide; step: number; resul
             </div>
             <h1 className="rts-display show-h1">Wie kent het team het best?</h1>
             <p className="show-sub" style={{ marginTop: "0.8em" }}>
-              Hoe dichter jouw ranking bij die van de hele groep, hoe hoger je mensenkennis-score. De winnaar mag zich
-              vanavond de échte ster noemen.
+              Stond jouw keuze op precies dezelfde plek in de top 3 van de groep? 3 punten. Wel in de top 3, maar op
+              een andere plek? 1 punt. De winnaar mag zich vanavond de échte ster noemen.
             </p>
           </div>
         );
@@ -443,7 +443,7 @@ function SlideView({ slide, step, results }: { slide: Slide; step: number; resul
           rows={results.leaderboard.map((r, i) => ({
             id: r.id,
             rank: i + 1,
-            meta: `${nl1(r.score)}%`,
+            meta: pts(r.score),
           }))}
           plan={plan}
           step={step - 1}
@@ -452,7 +452,7 @@ function SlideView({ slide, step, results }: { slide: Slide; step: number; resul
               player={playerById(winner.id)!}
               badge="👑"
               title="Winnaar van Ranking the Stars"
-              subtitle={`Mensenkennis-score: ${nl1(winner.score)}% · ${winner.exact}× precies goed`}
+              subtitle={`${pts(winner.score)} · ${winner.exact}× precies de juiste plek`}
             />
           }
         />

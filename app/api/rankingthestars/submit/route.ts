@@ -1,7 +1,7 @@
 import { createHash } from "crypto";
 import { NextResponse } from "next/server";
 import { PLAYERS, QUESTIONS, STORY_MAX } from "@/lib/rankingthestars/config";
-import { isFullRanking } from "@/lib/rankingthestars/results";
+import { isValidTop } from "@/lib/rankingthestars/results";
 import { getState, getSubmission, saveSubmission } from "@/lib/rankingthestars/store";
 
 export const dynamic = "force-dynamic";
@@ -30,8 +30,8 @@ export async function POST(request: Request) {
   const cleanStories: Record<string, string> = {};
   for (const q of QUESTIONS) {
     const order = rankings?.[q.id];
-    if (!isFullRanking(order, ids)) {
-      return NextResponse.json({ error: "Niet alle vragen zijn volledig gerangschikt." }, { status: 400 });
+    if (!isValidTop(order, ids)) {
+      return NextResponse.json({ error: "Niet bij alle vragen is een top 3 gekozen." }, { status: 400 });
     }
     cleanRankings[q.id] = order;
     const story = stories?.[q.id];
