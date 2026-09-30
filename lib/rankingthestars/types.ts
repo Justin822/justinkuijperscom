@@ -24,3 +24,8 @@ export const CATEGORIES: Record<Category, { label: string; emoji: string; color:
 };
 
 export const STORY_MAX = 600;
+
+/** Iedereen kiest per vraag een top 3. */
+export const TOP_N = 3;
+/** Punten voor plek 1, 2 en 3. */
+export const POINTS = [3, 2, 1];

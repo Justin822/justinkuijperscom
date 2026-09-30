@@ -1,7 +1,9 @@
-import type { Player, Question } from "./types";
+import { POINTS, TOP_N, type Player, type Question } from "./types";
 
 // Uitslagberekening voor Ranking the Stars. Puur, zonder opslag,
 // zodat dezelfde code ook de generale repetitie (demodata) kan draaien.
+//
+// Iedereen kiest per vraag een top 3: #1 = 3 punten, #2 = 2, #3 = 1.
 
 export type Ballot = {
   playerId: string;
@@ -12,8 +14,9 @@ export type Ballot = {
 export type Placement = {
   id: string;
   rank: number;
-  avg: number;
+  points: number;
   firstVotes: number;
+  secondVotes: number;
 };
 
 export type Story = { aboutId: string; text: string };
@@ -21,20 +24,20 @@ export type Story = { aboutId: string; text: string };
 export type QuestionResult = {
   questionId: string;
   voters: number;
-  ranking: Placement[];
+  ranking: Placement[]; // alleen collega's met punten
   stories: Story[];
 };
 
 export type ScoreRow = {
   id: string;
-  score: number; // mensenkennis in procenten
-  exact: number; // aantal keer precies de groepspositie
+  score: number; // mensenkennis-punten
+  exact: number; // aantal keer precies de juiste plek
 };
 
 export type Awards = {
-  selfAware?: { id: string; avgGap: number };
-  denial?: { id: string; questionId: string; selfRank: number; groupRank: number };
-  ego?: { id: string; questionId: string; selfRank: number; groupRank: number };
+  star?: { id: string; points: number };
+  denial?: { id: string; questionId: string; points: number };
+  ego?: { id: string; count: number };
 };
 
 export type Results = {
@@ -44,10 +47,17 @@ export type Results = {
   awards: Awards;
 };
 
-export function isFullRanking(order: unknown, ids: string[]): order is string[] {
-  if (!Array.isArray(order) || order.length !== ids.length) return false;
-  const seen = new Set(order);
-  return seen.size === ids.length && ids.every((id) => seen.has(id));
+/** Precies TOP_N verschillende, bekende spelers. */
+export function isValidTop(order: unknown, ids: string[]): order is string[] {
+  if (!Array.isArray(order) || order.length !== TOP_N) return false;
+  return new Set(order).size === TOP_N && order.every((id) => ids.includes(id));
+}
+
+// Inzendingen van vóór de top 3 bevatten alle 12 namen: pak dan de eerste 3.
+function topOf(order: unknown, ids: string[]): string[] | null {
+  if (!Array.isArray(order)) return null;
+  const top = order.slice(0, TOP_N);
+  return isValidTop(top, ids) ? top : null;
 }
 
 // Simpele deterministische hash zodat de volgorde van verhalen niet
@@ -63,30 +73,42 @@ function hash(text: string) {
 
 export function computeResults(players: Player[], questions: Question[], ballots: Ballot[]): Results {
   const ids = players.map((p) => p.id);
-  const n = ids.length;
-  const maxDeviation = Math.floor((n * n) / 2);
   const nameOf = (id: string) => players.find((p) => p.id === id)?.name || id;
   const valid = ballots.filter((b) => ids.includes(b.playerId));
 
   const questionResults: QuestionResult[] = questions.map((q) => {
     const votes = valid
-      .filter((b) => isFullRanking(b.rankings[q.id], ids))
-      .map((b) => ({ voter: b.playerId, order: b.rankings[q.id], story: (b.stories[q.id] || "").trim() }));
+      .map((b) => ({ voter: b.playerId, top: topOf(b.rankings[q.id], ids), story: (b.stories[q.id] || "").trim() }))
+      .filter((v): v is { voter: string; top: string[]; story: string } => v.top !== null);
 
     const stats = ids.map((id) => {
-      const positions = votes.map((v) => v.order.indexOf(id) + 1);
-      const avg = positions.length ? positions.reduce((a, b) => a + b, 0) / positions.length : n;
-      return { id, avg, firstVotes: positions.filter((p) => p === 1).length };
+      let points = 0;
+      let firstVotes = 0;
+      let secondVotes = 0;
+      for (const v of votes) {
+        const pos = v.top.indexOf(id);
+        if (pos < 0) continue;
+        points += POINTS[pos];
+        if (pos === 0) firstVotes++;
+        if (pos === 1) secondVotes++;
+      }
+      return { id, points, firstVotes, secondVotes };
     });
-    stats.sort(
-      (a, b) => a.avg - b.avg || b.firstVotes - a.firstVotes || nameOf(a.id).localeCompare(nameOf(b.id))
-    );
-    const ranking = stats.map((s, i) => ({ ...s, rank: i + 1 }));
+    const ranking = stats
+      .filter((s) => s.points > 0)
+      .sort(
+        (a, b) =>
+          b.points - a.points ||
+          b.firstVotes - a.firstVotes ||
+          b.secondVotes - a.secondVotes ||
+          nameOf(a.id).localeCompare(nameOf(b.id))
+      )
+      .map((s, i) => ({ ...s, rank: i + 1 }));
 
     const winner = ranking[0]?.id;
     const stories = votes
       .filter((v) => v.story)
-      .map((v) => ({ aboutId: v.order[0], text: v.story }))
+      .map((v) => ({ aboutId: v.top[0], text: v.story }))
       .sort((a, b) => {
         const aw = a.aboutId === winner ? 0 : 1;
         const bw = b.aboutId === winner ? 0 : 1;
@@ -96,52 +118,61 @@ export function computeResults(players: Player[], questions: Question[], ballots
     return { questionId: q.id, voters: votes.length, ranking, stories };
   });
 
-  // Mensenkennis en zelfbeeld per stemmer
+  // Mensenkennis: 3 punten voor precies de juiste plek in de groeps-top 3,
+  // 1 punt als die collega wel in de groeps-top 3 staat maar op een andere plek.
   const leaderboard: ScoreRow[] = [];
-  const awards: Awards = {};
-  let bestSelfGap = Infinity;
+  const selfVotes = new Map<string, number>();
 
   for (const ballot of valid) {
-    let accuracySum = 0;
-    let answered = 0;
+    let score = 0;
     let exact = 0;
-    let selfGapSum = 0;
-
+    let answered = 0;
     questions.forEach((q, qi) => {
-      const order = ballot.rankings[q.id];
-      if (!isFullRanking(order, ids)) return;
-      const groupRank = new Map(questionResults[qi].ranking.map((r) => [r.id, r.rank]));
-      let deviation = 0;
-      order.forEach((id, i) => {
-        const diff = Math.abs(i + 1 - (groupRank.get(id) as number));
-        deviation += diff;
-        if (diff === 0) exact++;
-      });
-      accuracySum += 1 - deviation / maxDeviation;
+      const top = topOf(ballot.rankings[q.id], ids);
+      if (!top) return;
       answered++;
-
-      const selfRank = order.indexOf(ballot.playerId) + 1;
-      const groupSelf = groupRank.get(ballot.playerId) as number;
-      selfGapSum += Math.abs(selfRank - groupSelf);
-      const gap = selfRank - groupSelf;
-      if (gap > 0 && (!awards.denial || gap > awards.denial.selfRank - awards.denial.groupRank)) {
-        awards.denial = { id: ballot.playerId, questionId: q.id, selfRank, groupRank: groupSelf };
-      }
-      if (gap < 0 && (!awards.ego || gap < awards.ego.selfRank - awards.ego.groupRank)) {
-        awards.ego = { id: ballot.playerId, questionId: q.id, selfRank, groupRank: groupSelf };
-      }
+      const groupTop = questionResults[qi].ranking.slice(0, TOP_N).map((r) => r.id);
+      top.forEach((id, i) => {
+        if (groupTop[i] === id) {
+          score += 3;
+          exact++;
+        } else if (groupTop.includes(id)) {
+          score += 1;
+        }
+      });
+      if (top.includes(ballot.playerId)) selfVotes.set(ballot.playerId, (selfVotes.get(ballot.playerId) || 0) + 1);
     });
-
-    if (!answered) continue;
-    leaderboard.push({ id: ballot.playerId, score: Math.round((accuracySum / answered) * 1000) / 10, exact });
-    const avgGap = selfGapSum / answered;
-    if (avgGap < bestSelfGap) {
-      bestSelfGap = avgGap;
-      awards.selfAware = { id: ballot.playerId, avgGap: Math.round(avgGap * 10) / 10 };
-    }
+    if (answered) leaderboard.push({ id: ballot.playerId, score, exact });
   }
-
   leaderboard.sort((a, b) => b.score - a.score || b.exact - a.exact || nameOf(a.id).localeCompare(nameOf(b.id)));
+
+  const awards: Awards = {};
+
+  // Ster van de avond: meeste punten over alle vragen samen
+  const totals = new Map<string, number>();
+  questionResults.forEach((qr) => qr.ranking.forEach((r) => totals.set(r.id, (totals.get(r.id) || 0) + r.points)));
+  ids.forEach((id) => {
+    const points = totals.get(id) || 0;
+    if (points > 0 && (!awards.star || points > awards.star.points)) awards.star = { id, points };
+  });
+
+  // Ontkenning: won een vraag, maar zette zichzelf niet in de eigen top 3
+  questionResults.forEach((qr, qi) => {
+    const winner = qr.ranking[0];
+    if (!winner) return;
+    const own = valid.find((b) => b.playerId === winner.id);
+    const ownTop = own ? topOf(own.rankings[questions[qi].id], ids) : null;
+    if (!ownTop || ownTop.includes(winner.id)) return;
+    if (!awards.denial || winner.points > awards.denial.points) {
+      awards.denial = { id: winner.id, questionId: qr.questionId, points: winner.points };
+    }
+  });
+
+  // Ster in eigen ogen: zette zichzelf het vaakst in de eigen top 3
+  ids.forEach((id) => {
+    const count = selfVotes.get(id) || 0;
+    if (count > 0 && (!awards.ego || count > awards.ego.count)) awards.ego = { id, count };
+  });
 
   return { voters: valid.length, questions: questionResults, leaderboard, awards };
 }
@@ -182,6 +213,7 @@ export function makeDemoBallots(players: Player[], questions: Question[], seed =
       rankings[q.id] = [...ids]
         .map((id) => ({ id, w: favourites[q.id][id] + rand() * 2.5 }))
         .sort((a, b) => b.w - a.w)
+        .slice(0, TOP_N)
         .map((x) => x.id);
       if (rand() < 0.6) stories[q.id] = DEMO_STORIES[Math.floor(rand() * DEMO_STORIES.length)];
     });

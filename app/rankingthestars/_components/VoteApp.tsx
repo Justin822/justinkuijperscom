@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { CATEGORIES, STORY_MAX } from "@/lib/rankingthestars/types";
+import { CATEGORIES, POINTS, STORY_MAX, TOP_N } from "@/lib/rankingthestars/types";
 import { useGame } from "./GameContext";
 import Avatar from "./Avatar";
 import Confetti from "./Confetti";
@@ -42,7 +42,12 @@ function deviceToken(): string {
 function loadDraft(playerId: string): Draft {
   try {
     const raw = storage()?.getItem(`rts:draft:${playerId}`);
-    if (raw) return { ...EMPTY_DRAFT, ...JSON.parse(raw) };
+    if (raw) {
+      const draft: Draft = { ...EMPTY_DRAFT, ...JSON.parse(raw) };
+      const rankings: Record<string, string[]> = {};
+      Object.keys(draft.rankings || {}).forEach((qid) => (rankings[qid] = (draft.rankings[qid] || []).slice(0, TOP_N)));
+      return { ...draft, rankings };
+    }
   } catch {
     // leeg concept
   }
@@ -59,8 +64,7 @@ function saveDraft(playerId: string, draft: Draft) {
 
 export default function VoteApp() {
   const { PLAYERS, QUESTIONS, playerById } = useGame();
-  const TOTAL = PLAYERS.length;
-  const isComplete = (d: Draft, qid: string) => (d.rankings[qid] || []).length === TOTAL;
+  const isComplete = (d: Draft, qid: string) => (d.rankings[qid] || []).length === TOP_N;
   const [phase, setPhase] = useState<Phase>("loading");
   const [status, setStatus] = useState<Status | null>(null);
   const [me, setMe] = useState<string | null>(null);
@@ -127,6 +131,7 @@ export default function VoteApp() {
   };
 
   const add = (id: string) => {
+    if (ranking.length >= TOP_N) return;
     setLastAdded(id);
     setRanking([...ranking, id]);
   };
@@ -208,8 +213,8 @@ export default function VoteApp() {
             <li>
               <b>2</b>
               <span>
-                Zet per vraag <strong>alle {TOTAL} collega&apos;s</strong> op volgorde, van nummer 1 (past het best) tot
-                nummer {TOTAL}. Jezelf ook, eerlijk zijn!
+                Kies per vraag jouw <strong>top 3</strong>: wie past er het állerbeste bij? Nummer 1 krijgt{" "}
+                {POINTS[0]} punten, nummer 2 krijgt {POINTS[1]} en nummer 3 krijgt {POINTS[2]}. Jezelf kiezen mag ook!
               </span>
             </li>
             <li>
@@ -220,7 +225,7 @@ export default function VoteApp() {
             </li>
           </ol>
           <p style={{ marginTop: 16, color: "var(--muted)", fontSize: 14 }}>
-            {QUESTIONS.length} vragen · ongeveer 10 minuten · je kunt tussendoor stoppen, we onthouden alles.
+            {QUESTIONS.length} vragen · ongeveer 5 minuten · je kunt tussendoor stoppen, we onthouden alles.
           </p>
         </div>
         <div style={{ marginTop: 28, display: "flex", flexDirection: "column", alignItems: "center", gap: 14 }}>
@@ -295,7 +300,7 @@ export default function VoteApp() {
 
   const progress = (
     <div className="rts-topbar">
-      <button className="rts-link rts-display" style={{ textDecoration: "none", fontSize: 13 }} onClick={() => setPhase("who")}>
+      <button className="rts-link rts-display" style={{ textDecoration: "none", fontSize: 13, whiteSpace: "nowrap" }} onClick={() => setPhase("who")}>
         ⭐ {meName}
       </button>
       <nav className="rts-progress" aria-label="Vragen">
@@ -335,7 +340,7 @@ export default function VoteApp() {
         <div style={{ display: "grid", gap: 10, marginTop: 20 }}>
           {QUESTIONS.map((q, i) => {
             const order = draft.rankings[q.id] || [];
-            const done = order.length === TOTAL;
+            const done = order.length === TOP_N;
             const story = draft.stories[q.id];
             return (
               <button
@@ -417,7 +422,7 @@ export default function VoteApp() {
 
   // Vraagscherm
   const category = CATEGORIES[question.category];
-  const complete = ranking.length === TOTAL;
+  const complete = ranking.length === TOP_N;
   const number1 = ranking[0] ? playerById(ranking[0]) : null;
   const story = draft.stories[question.id] || "";
 
@@ -436,51 +441,21 @@ export default function VoteApp() {
       </section>
 
       <div className="rts-rank-grid">
-        <section className="rts-card rts-pool">
-          {pool.length ? (
-            <>
-              <div className="rts-display" style={{ fontSize: 17 }}>
-                Wie komt op <span style={{ color: "var(--gold)" }}>#{ranking.length + 1}</span>?
-              </div>
-              <p style={{ fontSize: 13, color: "var(--muted)", marginTop: 4 }}>
-                {ranking.length === 0
-                  ? "Tik eerst op wie het állerbeste bij deze vraag past."
-                  : `Tik op een naam. Nog ${pool.length} te gaan.`}
-              </p>
-              <div className="rts-pool__chips">
-                {pool.map((p) => (
-                  <button key={p.id} className="rts-namechip" onClick={() => add(p.id)}>
-                    <Avatar player={p} size={32} />
-                    {p.name}
-                    {p.id === me && <span style={{ fontSize: 11, color: "var(--gold)" }}>(jij)</span>}
-                  </button>
-                ))}
-              </div>
-            </>
-          ) : (
-            <div style={{ textAlign: "center", padding: "8px 0" }}>
-              <div style={{ fontSize: 36 }}>✨</div>
-              <div className="rts-display" style={{ fontSize: 17, marginTop: 4 }}>
-                Iedereen staat erin!
-              </div>
-              <p style={{ fontSize: 13, color: "var(--muted)", marginTop: 4 }}>
-                Schuif nog wat met de pijltjes als je wilt.
-              </p>
-            </div>
-          )}
-        </section>
-
-        <section className="rts-card rts-list" aria-label="Jouw ranking">
+        <section className="rts-card rts-list" aria-label="Jouw top 3">
+          <div className="rts-display" style={{ fontSize: 17, padding: "4px 4px 6px" }}>
+            Jouw top 3
+          </div>
           {ranking.map((id, i) => {
             const p = playerById(id)!;
             return (
               <div key={id} className={`rts-row ${id === lastAdded ? "is-new" : ""}`}>
-                <span className={`rts-rankno ${i < 3 ? `rts-rankno--${i + 1}` : ""}`}>{i + 1}</span>
+                <span className={`rts-rankno rts-rankno--${i + 1}`}>{i + 1}</span>
                 <Avatar player={p} size={34} />
                 <span className="rts-row__name">
                   {p.name}
                   {p.id === me && <span style={{ fontSize: 11, color: "var(--gold)" }}> (jij)</span>}
                 </span>
+                <span style={{ fontSize: 12, color: "var(--muted)", whiteSpace: "nowrap" }}>{POINTS[i]} pt</span>
                 <button className="rts-iconbtn" disabled={i === 0} onClick={() => move(i, -1)} aria-label="Omhoog">
                   ▲
                 </button>
@@ -498,22 +473,49 @@ export default function VoteApp() {
               </div>
             );
           })}
-          {Array.from({ length: TOTAL - ranking.length }, (_, k) => {
+          {Array.from({ length: TOP_N - ranking.length }, (_, k) => {
             const pos = ranking.length + k + 1;
             return (
               <div key={`empty-${pos}`} className={`rts-row rts-row--empty ${k === 0 ? "rts-row--next" : ""}`}>
                 <span className="rts-rankno" style={{ background: "transparent" }}>
                   {pos}
                 </span>
-                <span>{k === 0 ? "← kies iemand" : ""}</span>
+                <span>{k === 0 ? "kies hieronder iemand ↓" : ""}</span>
               </div>
             );
           })}
-          {ranking.length > 0 && (
-            <div style={{ textAlign: "right", marginTop: 4 }}>
-              <button className="rts-link" style={{ fontSize: 13 }} onClick={() => setRanking([])}>
-                Opnieuw beginnen
-              </button>
+        </section>
+
+        <section className="rts-card rts-pool">
+          {ranking.length < TOP_N ? (
+            <>
+              <div className="rts-display" style={{ fontSize: 17 }}>
+                Wie is jouw <span style={{ color: "var(--gold)" }}>#{ranking.length + 1}</span>?
+              </div>
+              <p style={{ fontSize: 13, color: "var(--muted)", marginTop: 4 }}>
+                {ranking.length === 0
+                  ? "Tik op wie het állerbeste bij deze vraag past."
+                  : `Tik op een naam. Nog ${TOP_N - ranking.length} te kiezen.`}
+              </p>
+              <div className="rts-pool__chips">
+                {pool.map((p) => (
+                  <button key={p.id} className="rts-namechip" onClick={() => add(p.id)}>
+                    <Avatar player={p} size={32} />
+                    {p.name}
+                    {p.id === me && <span style={{ fontSize: 11, color: "var(--gold)" }}>(jij)</span>}
+                  </button>
+                ))}
+              </div>
+            </>
+          ) : (
+            <div style={{ textAlign: "center", padding: "8px 0" }}>
+              <div style={{ fontSize: 36 }}>🏆</div>
+              <div className="rts-display" style={{ fontSize: 17, marginTop: 4 }}>
+                Top 3 compleet!
+              </div>
+              <p style={{ fontSize: 13, color: "var(--muted)", marginTop: 4 }}>
+                Wisselen? Schuif met de pijltjes of tik op ✕ om iemand te vervangen.
+              </p>
             </div>
           )}
         </section>
@@ -575,7 +577,7 @@ export default function VoteApp() {
               ? qIndex === QUESTIONS.length - 1 || allComplete
                 ? "Naar overzicht →"
                 : "Volgende →"
-              : `Nog ${TOTAL - ranking.length} te gaan`}
+              : `Nog ${TOP_N - ranking.length} te kiezen`}
           </button>
         </div>
       </div>

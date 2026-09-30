@@ -41,7 +41,7 @@ Check out our [Next.js deployment documentation](https://nextjs.org/docs/deploym
 
 Spelshow-app op `/rankingthestars` (optioneel ook via een subdomein `rankingthestars.` of `rts.`, zie `middleware.ts`).
 
-- `/rankingthestars`: collega's rangschikken per vraag alle 12 collega's en vertellen het verhaal achter hun nummer 1.
+- `/rankingthestars`: collega's kiezen per vraag hun top 3 (3, 2 en 1 punt) en vertellen het verhaal achter hun nummer 1.
 - `/rankingthestars/host`: regiekamer (pincode): wie heeft gestemd, stembus open/dicht, stem resetten.
 - `/rankingthestars/show`: de uitslag op het grote scherm (spatie/→ volgende, ← terug, F volledig scherm, M geluid). Met `?demo=1` draait een generale repetitie op nepdata.
 
