@@ -9,18 +9,18 @@ export { CATEGORIES, STORY_MAX } from "./types";
 export type { Category, Player, Question } from "./types";
 
 export const PLAYERS: Player[] = [
-  { id: "p1", name: "Collega 1" },
-  { id: "p2", name: "Collega 2" },
-  { id: "p3", name: "Collega 3" },
-  { id: "p4", name: "Collega 4" },
-  { id: "p5", name: "Collega 5" },
-  { id: "p6", name: "Collega 6" },
-  { id: "p7", name: "Collega 7" },
-  { id: "p8", name: "Collega 8" },
-  { id: "p9", name: "Collega 9" },
-  { id: "p10", name: "Collega 10" },
-  { id: "p11", name: "Collega 11" },
-  { id: "p12", name: "Collega 12" },
+  { id: "p1", name: "Michelle" },
+  { id: "p2", name: "Jade" },
+  { id: "p3", name: "Sabine" },
+  { id: "p4", name: "Mieke" },
+  { id: "p5", name: "Lisa" },
+  { id: "p6", name: "Justin" },
+  { id: "p7", name: "Carlijne" },
+  { id: "p8", name: "Vanessa" },
+  { id: "p9", name: "Esmee" },
+  { id: "p10", name: "Joyce" },
+  { id: "p11", name: "Lola" },
+  { id: "p12", name: "Hidde" },
 ];
 
 export const QUESTIONS: Question[] = [

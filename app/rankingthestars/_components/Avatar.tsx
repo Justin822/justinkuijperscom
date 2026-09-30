@@ -24,6 +24,30 @@ export function initials(name: string) {
   return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
 }
 
+// Unieke afkortingen, zodat bijvoorbeeld Michelle (MI) en Mieke (ME) niet hetzelfde rondje krijgen.
+function uniqueInitials(players: Player[]): Record<string, string> {
+  const taken = new Set<string>();
+  const result: Record<string, string> = {};
+  players.forEach((p) => {
+    let label = initials(p.name);
+    const letters = p.name.replace(/\s+/g, "").toUpperCase();
+    for (let i = 1; taken.has(label) && i < letters.length; i++) label = letters[0] + letters[i];
+    taken.add(label);
+    result[p.id] = label;
+  });
+  return result;
+}
+
+const cache = new WeakMap<Player[], Record<string, string>>();
+function labelFor(player: Player, players: Player[]) {
+  let labels = cache.get(players);
+  if (!labels) {
+    labels = uniqueInitials(players);
+    cache.set(players, labels);
+  }
+  return labels[player.id] || initials(player.name);
+}
+
 export default function Avatar({
   player,
   size = 44,
@@ -49,7 +73,7 @@ export default function Avatar({
       }}
       aria-hidden
     >
-      {player.photo ? <img src={player.photo} alt="" /> : <span style={{ fontSize: "0.38em" }}>{initials(player.name)}</span>}
+      {player.photo ? <img src={player.photo} alt="" /> : <span style={{ fontSize: "0.38em" }}>{labelFor(player, PLAYERS)}</span>}
     </span>
   );
 }
