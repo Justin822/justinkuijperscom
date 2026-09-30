@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { CATEGORIES, PLAYERS, QUESTIONS, STORY_MAX, playerById } from "@/lib/rankingthestars/config";
+import { CATEGORIES, STORY_MAX } from "@/lib/rankingthestars/types";
+import { useGame } from "./GameContext";
 import Avatar from "./Avatar";
 import Confetti from "./Confetti";
 import Logo from "./Logo";
@@ -16,7 +17,6 @@ type Status = { votingOpen: boolean; submitted: string[] };
 type Phase = "loading" | "intro" | "who" | "question" | "review" | "done";
 
 const EMPTY_DRAFT: Draft = { rankings: {}, stories: {} };
-const TOTAL = PLAYERS.length;
 
 function storage(): Storage | null {
   try {
@@ -57,9 +57,10 @@ function saveDraft(playerId: string, draft: Draft) {
   }
 }
 
-const isComplete = (draft: Draft, qid: string) => (draft.rankings[qid] || []).length === TOTAL;
-
 export default function VoteApp() {
+  const { PLAYERS, QUESTIONS, playerById } = useGame();
+  const TOTAL = PLAYERS.length;
+  const isComplete = (d: Draft, qid: string) => (d.rankings[qid] || []).length === TOTAL;
   const [phase, setPhase] = useState<Phase>("loading");
   const [status, setStatus] = useState<Status | null>(null);
   const [me, setMe] = useState<string | null>(null);

@@ -1,4 +1,7 @@
-import { PLAYERS, type Player } from "@/lib/rankingthestars/config";
+"use client";
+
+import type { Player } from "@/lib/rankingthestars/types";
+import { useGame } from "./GameContext";
 
 const COLORS = [
   "linear-gradient(135deg, #ff2e88, #b3006b)",
@@ -32,6 +35,7 @@ export default function Avatar({
   className?: string;
   style?: React.CSSProperties;
 }) {
+  const { PLAYERS } = useGame();
   const index = Math.max(0, PLAYERS.findIndex((p) => p.id === player.id));
   return (
     <span

@@ -1,4 +1,4 @@
-import type { Player, Question } from "./config";
+import type { Player, Question } from "./types";
 
 // Uitslagberekening voor Ranking the Stars. Puur, zonder opslag,
 // zodat dezelfde code ook de generale repetitie (demodata) kan draaien.
