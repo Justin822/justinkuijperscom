@@ -10,7 +10,7 @@ const roboto_mono = Roboto_Mono({
 
 export const metadata = {
   title: "Justin Kuijpers",
-  description: "Justin Kuijpers. SEA Freelancer. Online marketer at Axians. ",
+  description: "Justin Kuijpers",
 };
 
 export default function RootLayout({
