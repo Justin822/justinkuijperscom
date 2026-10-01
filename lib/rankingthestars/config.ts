@@ -5,7 +5,7 @@
 
 import type { Player, Question } from "./types";
 
-export { CATEGORIES, STORY_MAX, STORY_MIN } from "./types";
+export { CATEGORIES, STORY_MAX } from "./types";
 export type { Category, Player, Question } from "./types";
 
 export const PLAYERS: Player[] = [

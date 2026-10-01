@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { CATEGORIES, POINTS, STORY_MAX, STORY_MIN, TOP_N } from "@/lib/rankingthestars/types";
+import { CATEGORIES, POINTS, STORY_MAX, TOP_N } from "@/lib/rankingthestars/types";
 import { useGame } from "./GameContext";
 import Avatar from "./Avatar";
 import Confetti from "./Confetti";
@@ -64,8 +64,7 @@ function saveDraft(playerId: string, draft: Draft) {
 
 export default function VoteApp() {
   const { PLAYERS, QUESTIONS, playerById } = useGame();
-  const storyDone = (d: Draft, qid: string) => (d.stories[qid] || "").trim().length >= STORY_MIN;
-  const isComplete = (d: Draft, qid: string) => (d.rankings[qid] || []).length === TOP_N && storyDone(d, qid);
+  const isComplete = (d: Draft, qid: string) => (d.rankings[qid] || []).length === TOP_N;
   const [phase, setPhase] = useState<Phase>("loading");
   const [status, setStatus] = useState<Status | null>(null);
   const [me, setMe] = useState<string | null>(null);
@@ -221,7 +220,7 @@ export default function VoteApp() {
             <li>
               <b>3</b>
               <span>
-                Vertel bij elke vraag het verhaal achter je nummer 1. Anoniem, maar het komt wél op het grote scherm. 🤫
+                Vertel het verhaal achter je nummer 1. Anoniem, maar het komt wél op het grote scherm. 🤫
               </span>
             </li>
           </ol>
@@ -423,8 +422,7 @@ export default function VoteApp() {
 
   // Vraagscherm
   const category = CATEGORIES[question.category];
-  const rankingDone = ranking.length === TOP_N;
-  const complete = rankingDone && storyDone(draft, question.id);
+  const complete = ranking.length === TOP_N;
   const number1 = ranking[0] ? playerById(ranking[0]) : null;
   const story = draft.stories[question.id] || "";
 
@@ -549,9 +547,7 @@ export default function VoteApp() {
           }
         />
         <div style={{ textAlign: "right", fontSize: 12, color: "var(--muted)", marginTop: 4 }}>
-          {story.trim().length < STORY_MIN
-            ? `Verplicht · nog ${STORY_MIN - story.trim().length} ${STORY_MIN - story.trim().length === 1 ? "teken" : "tekens"}`
-            : `${story.length}/${STORY_MAX} ✓`}
+          {story.length}/{STORY_MAX} · optioneel, maar wel leuk
         </div>
       </section>
 
@@ -581,9 +577,7 @@ export default function VoteApp() {
               ? qIndex === QUESTIONS.length - 1 || allComplete
                 ? "Naar overzicht →"
                 : "Volgende →"
-              : !rankingDone
-                ? `Nog ${TOP_N - ranking.length} te kiezen`
-                : "Vul het verhaal in"}
+              : `Nog ${TOP_N - ranking.length} te kiezen`}
           </button>
         </div>
       </div>

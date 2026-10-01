@@ -25,8 +25,6 @@ export const CATEGORIES: Record<Category, { label: string; emoji: string; color:
 
 /** Maximale lengte van een verhaal, zodat het altijd helemaal op het grote scherm past. */
 export const STORY_MAX = 280;
-/** Het verhaal is verplicht: minimaal zoveel tekens. */
-export const STORY_MIN = 10;
 
 /** Iedereen kiest per vraag een top 3. */
 export const TOP_N = 3;
