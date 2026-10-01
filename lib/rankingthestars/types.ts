@@ -14,7 +14,6 @@ export type Question = {
   id: string;
   category: Category;
   question: string;
-  storyPrompt: string;
 };
 
 export const CATEGORIES: Record<Category, { label: string; emoji: string; color: string }> = {

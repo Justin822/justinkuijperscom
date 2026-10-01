@@ -220,7 +220,7 @@ export default function VoteApp() {
             <li>
               <b>3</b>
               <span>
-                Vertel het verhaal achter je nummer 1. Anoniem, maar het komt wél op het grote scherm. 🤫
+                Vertel waarom je jouw nummer 1 hebt gekozen. Anoniem, maar het komt wél op het grote scherm. 🤫
               </span>
             </li>
           </ol>
@@ -523,15 +523,15 @@ export default function VoteApp() {
 
       <section className="rts-card rts-story">
         <label htmlFor="story" className="rts-display" style={{ fontSize: 17, display: "block" }}>
-          🎤 Vertel het verhaal
+          🎤 Waarom?
         </label>
         <p style={{ marginTop: 4, color: "var(--muted)", fontSize: 14 }}>
           {number1 ? (
             <>
-              Over jouw nummer 1, <strong style={{ color: "#fff" }}>{number1.name}</strong>: {question.storyPrompt}
+              Waarom heb je <strong style={{ color: "#fff" }}>{number1.name}</strong> op nummer 1 gezet?
             </>
           ) : (
-            <>Kies eerst je nummer 1. {question.storyPrompt}</>
+            <>Kies eerst je nummer 1, en vertel dan waarom.</>
           )}
         </p>
         <textarea
