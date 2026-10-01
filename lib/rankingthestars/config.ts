@@ -21,6 +21,7 @@ export const PLAYERS: Player[] = [
   { id: "p10", name: "Joyce" },
   { id: "p11", name: "Lola" },
   { id: "p12", name: "Hidde" },
+  { id: "p13", name: "Pien" },
 ];
 
 export const QUESTIONS: Question[] = [
