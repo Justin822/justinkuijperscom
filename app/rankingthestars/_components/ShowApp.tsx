@@ -513,7 +513,7 @@ function RankBoard({
         )}
       </div>
       <div
-        className={`board ${rows.length <= 6 ? "board--single" : ""}`}
+        className={`board ${rows.length <= 6 ? "board--single" : ""} ${rows.length > 12 ? "board--dense" : ""}`}
         style={rows.length > 6 ? { gridTemplateRows: `repeat(${perColumn}, auto)` } : undefined}
       >
         {rows.map((row) => {

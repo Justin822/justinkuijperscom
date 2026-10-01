@@ -908,6 +908,16 @@
   transform-style: preserve-3d;
 }
 
+/* Meer dan 12 rijen (7 per kolom): iets compacter zodat alles boven de footer past */
+.board--dense {
+  gap: 0.5em 1.6em;
+  margin-top: 0.8em;
+}
+
+.board--dense .board-row {
+  height: 3.15em;
+}
+
 .board-row .rts-rankno {
   width: 2.5em;
   height: 2.5em;

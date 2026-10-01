@@ -16,6 +16,7 @@ const COLORS = [
   "linear-gradient(135deg, #2ee6c5, #0b8f8f)",
   "linear-gradient(135deg, #ff9a6b, #c4400c)",
   "linear-gradient(135deg, #b5f23d, #4f9a00)",
+  "linear-gradient(135deg, #c39bff, #ff5fa2)",
 ];
 
 export function initials(name: string) {
