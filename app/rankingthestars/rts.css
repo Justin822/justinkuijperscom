@@ -197,7 +197,7 @@
 
 /* ---------- Knoppen, kaarten, chips ---------- */
 
-.rts-btn {
+.rts .rts-btn {
   position: relative;
   display: inline-flex;
   align-items: center;
@@ -217,44 +217,44 @@
   user-select: none;
 }
 
-.rts-btn:hover {
+.rts .rts-btn:hover {
   filter: brightness(1.07);
 }
 
-.rts-btn:active {
+.rts .rts-btn:active {
   transform: translateY(5px);
   box-shadow: 0 1px 0 #b35f00, 0 4px 10px rgba(0, 0, 0, 0.35);
 }
 
-.rts-btn:disabled {
+.rts .rts-btn:disabled {
   opacity: 0.4;
   cursor: not-allowed;
   transform: none;
   filter: grayscale(0.5);
 }
 
-.rts-btn--pink {
+.rts .rts-btn--pink {
   color: #fff;
   background: linear-gradient(180deg, #ff7ab5, var(--pink) 55%, #d0005e);
   box-shadow: 0 6px 0 #85003c, 0 12px 24px rgba(0, 0, 0, 0.35);
 }
 
-.rts-btn--pink:active {
+.rts .rts-btn--pink:active {
   box-shadow: 0 1px 0 #85003c;
 }
 
-.rts-btn--ghost {
+.rts .rts-btn--ghost {
   color: #fff;
   background: rgba(255, 255, 255, 0.1);
   box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.25);
 }
 
-.rts-btn--ghost:active {
+.rts .rts-btn--ghost:active {
   transform: translateY(2px);
   box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.4);
 }
 
-.rts-btn--small {
+.rts .rts-btn--small {
   padding: 0.55em 1.1em;
   font-size: 0.85rem;
 }
