@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { OPEN_STATUSES } from "./config";
 import { addDays, amsterdamToday, isIsoDate } from "./dates";
-import { freeMinutesOn } from "./agenda";
+import { freeMinutesOn } from "./agenda-server";
 import { spawnNext } from "./repeat";
 import { DayContext, pickTop, rankTasks } from "./score";
 import { getDays, getTasks, saveDay } from "./store";

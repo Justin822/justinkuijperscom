@@ -34,6 +34,8 @@ export type Task = {
   blockStart: string | null;
   /** Minuten die je met de focus-timer aan deze taak hebt gewerkt. */
   focusMinutes: number;
+  /** Afspraak in de Google-agenda "Planner" voor het timeblock. */
+  googleEventId: string | null;
   createdAt: number;
   updatedAt: number;
   doneAt: number | null;
@@ -77,4 +79,38 @@ export type CalendarEvent = {
   endDate: string | null;
   /** Telt mee als bezet (TRANSP:TRANSPARENT telt niet). */
   busy: boolean;
+};
+
+export type IcsSource = { id: string; name: string; url: string };
+
+export type GoogleCalendar = { id: string; name: string; color: string | null; selected: boolean };
+
+export type GoogleLink = {
+  refreshToken: string;
+  email: string | null;
+  calendars: GoogleCalendar[];
+  /** De eigen agenda "Planner" waar timeblocks in komen. */
+  plannerCalendarId: string | null;
+  /** Google weigert de koppeling (ingetrokken): opnieuw koppelen nodig. */
+  needsReconnect: boolean;
+};
+
+export type Settings = {
+  icsSources: IcsSource[];
+  workday: { start: string; end: string };
+  google: GoogleLink | null;
+};
+
+/** Wat de browser van de instellingen te zien krijgt: geen tokens, geen volledige links. */
+export type PublicSettings = {
+  icsSources: { id: string; name: string; preview: string }[];
+  workday: { start: string; end: string };
+  google: {
+    configured: boolean;
+    connected: boolean;
+    email: string | null;
+    calendars: GoogleCalendar[];
+    needsReconnect: boolean;
+    planner: boolean;
+  };
 };

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { blockInterval, freeMinutes, WORKDAY } from "@/lib/taken/agenda";
+import { blockInterval, freeMinutes } from "@/lib/taken/agenda";
 import { OPEN_STATUSES } from "@/lib/taken/config";
 import { addDays, formatLong, weekday } from "@/lib/taken/dates";
 import { rankTasks } from "@/lib/taken/score";
@@ -24,8 +24,21 @@ const hhmm = (ms: number) => new Date(ms).toLocaleTimeString("nl-NL", { hour: "2
 const at = (date: string, time: string) => new Date(`${date}T${time}:00`).getTime();
 
 export default function TodayPage() {
-  const { tasks, loaded, error, today, plan, reloadPlan, planAction, openTask, updateTask, addRef, startFocus, focus } =
-    useTaken();
+  const {
+    tasks,
+    loaded,
+    error,
+    today,
+    plan,
+    reloadPlan,
+    planAction,
+    openTask,
+    updateTask,
+    addRef,
+    startFocus,
+    focus,
+    workday: WORKDAY,
+  } = useTaken();
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     const timer = setInterval(() => setNow(Date.now()), 60000);
