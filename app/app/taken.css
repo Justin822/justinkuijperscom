@@ -1,0 +1,587 @@
+/* Taken-app. Rustig, licht en donker via systeeminstelling. */
+
+.tk {
+  --bg: #f6f5f1;
+  --surface: #ffffff;
+  --surface-2: #efede7;
+  --line: #e3e0d8;
+  --text: #1d1c1a;
+  --muted: #6f6b63;
+  --faint: #a29d93;
+  --accent: #2f4fd8;
+  --accent-soft: #e6eafc;
+  --accent-text: #ffffff;
+  --danger: #c0392b;
+  --danger-soft: #fbe9e7;
+  --warn: #b7791f;
+  --warn-soft: #fdf3e1;
+  --ok: #2f855a;
+  --ok-soft: #e3f4ea;
+  --shadow: 0 1px 2px rgba(29, 28, 26, 0.06), 0 4px 16px rgba(29, 28, 26, 0.05);
+  --radius: 14px;
+
+  min-height: 100vh;
+  min-height: 100dvh;
+  background: var(--bg);
+  color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, "Helvetica Neue", Arial, sans-serif;
+  font-size: 16px;
+  line-height: 1.45;
+  -webkit-tap-highlight-color: transparent;
+}
+
+@media (prefers-color-scheme: dark) {
+  .tk {
+    --bg: #141413;
+    --surface: #1e1e1c;
+    --surface-2: #2a2a27;
+    --line: #34332f;
+    --text: #f1efe9;
+    --muted: #a8a49b;
+    --faint: #75716a;
+    --accent: #7b93ff;
+    --accent-soft: #232a4a;
+    --accent-text: #0f1220;
+    --danger: #ff7b6b;
+    --danger-soft: #3a1f1b;
+    --warn: #f0b34a;
+    --warn-soft: #3a2f1a;
+    --ok: #5cc58a;
+    --ok-soft: #1b3326;
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+  }
+}
+
+.tk ::selection {
+  background: var(--accent-soft);
+}
+
+/* Layout */
+.tk .tk-layout {
+  display: flex;
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+.tk .tk-side {
+  display: none;
+}
+.tk .tk-main {
+  flex: 1;
+  min-width: 0;
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 12px 16px calc(96px + env(safe-area-inset-bottom));
+}
+.tk .tk-bottom {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 30;
+  display: flex;
+  justify-content: space-around;
+  background: var(--surface);
+  background: color-mix(in srgb, var(--surface) 92%, transparent);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-top: 1px solid var(--line);
+  padding: 6px 4px calc(6px + env(safe-area-inset-bottom));
+}
+.tk .tk-bottom a {
+  position: relative;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 4px 0;
+  font-size: 11px;
+  color: var(--muted);
+  border-radius: 10px;
+}
+.tk .tk-bottom a[aria-current="page"] {
+  color: var(--accent);
+  font-weight: 600;
+}
+.tk .tk-bottom svg {
+  width: 22px;
+  height: 22px;
+}
+
+@media (min-width: 900px) {
+  .tk .tk-side {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    width: 232px;
+    flex-shrink: 0;
+    padding: 24px 14px;
+    border-right: 1px solid var(--line);
+    background: var(--surface);
+  }
+  .tk .tk-side a {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 10px;
+    border-radius: 10px;
+    color: var(--muted);
+    font-size: 15px;
+  }
+  .tk .tk-side a:hover {
+    background: var(--surface-2);
+    color: var(--text);
+  }
+  .tk .tk-side a[aria-current="page"] {
+    background: var(--accent-soft);
+    color: var(--accent);
+    font-weight: 600;
+  }
+  .tk .tk-side svg {
+    width: 18px;
+    height: 18px;
+  }
+  .tk .tk-bottom {
+    display: none;
+  }
+  .tk .tk-main {
+    padding: 28px 32px 64px;
+  }
+}
+
+.tk .tk-badge {
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: var(--accent);
+  color: var(--accent-text);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 18px;
+  text-align: center;
+}
+.tk .tk-bottom .tk-badge {
+  position: absolute;
+  top: 0;
+  left: calc(50% + 6px);
+}
+.tk .tk-side .tk-badge {
+  margin-left: auto;
+}
+
+/* Typografie */
+.tk .tk-h1 {
+  font-size: 26px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+}
+.tk .tk-h2 {
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.tk .tk-muted {
+  color: var(--muted);
+}
+.tk .tk-faint {
+  color: var(--faint);
+}
+
+/* Onderdelen */
+.tk .tk-card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+
+.tk .tk-input,
+.tk .tk-select,
+.tk .tk-textarea {
+  width: 100%;
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 10px 12px;
+  font: inherit;
+  outline: none;
+}
+.tk .tk-input:focus,
+.tk .tk-select:focus,
+.tk .tk-textarea:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+.tk .tk-input::placeholder,
+.tk .tk-textarea::placeholder {
+  color: var(--faint);
+}
+
+.tk .tk-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 9px 14px;
+  border-radius: 10px;
+  background: var(--accent);
+  color: var(--accent-text);
+  font-weight: 600;
+  font-size: 15px;
+  white-space: nowrap;
+  transition: transform 0.08s ease, opacity 0.15s ease;
+}
+.tk .tk-btn:active {
+  transform: scale(0.97);
+}
+.tk .tk-btn:disabled {
+  opacity: 0.5;
+}
+.tk .tk-btn-ghost {
+  background: var(--surface-2);
+  color: var(--text);
+}
+.tk .tk-btn-danger {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+.tk .tk-btn-sm {
+  padding: 6px 10px;
+  font-size: 13px;
+  border-radius: 8px;
+}
+
+.tk .tk-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 9px;
+  color: var(--muted);
+  flex-shrink: 0;
+}
+.tk .tk-icon-btn:hover {
+  background: var(--surface-2);
+  color: var(--text);
+}
+.tk .tk-icon-btn svg {
+  width: 18px;
+  height: 18px;
+}
+
+.tk .tk-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  color: var(--muted);
+  font-size: 12.5px;
+  line-height: 20px;
+  white-space: nowrap;
+}
+.tk .tk-chip-accent {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.tk .tk-chip-danger {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+.tk .tk-chip-warn {
+  background: var(--warn-soft);
+  color: var(--warn);
+}
+.tk .tk-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+/* Segmented control */
+.tk .tk-seg {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.tk .tk-seg button {
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: var(--surface-2);
+  color: var(--muted);
+  font-size: 13.5px;
+}
+.tk .tk-seg button[aria-pressed="true"] {
+  background: var(--accent);
+  color: var(--accent-text);
+  font-weight: 600;
+}
+
+/* Takenlijst */
+.tk .tk-list {
+  display: flex;
+  flex-direction: column;
+}
+.tk .tk-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 11px 4px;
+  border-bottom: 1px solid var(--line);
+}
+.tk .tk-row:last-child {
+  border-bottom: 0;
+}
+.tk .tk-row-body {
+  flex: 1;
+  min-width: 0;
+  cursor: pointer;
+}
+.tk .tk-row-title {
+  font-size: 15.5px;
+  overflow-wrap: anywhere;
+}
+.tk .tk-row-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 6px;
+  margin-top: 4px;
+}
+.tk .tk-row.is-done .tk-row-title {
+  color: var(--faint);
+  text-decoration: line-through;
+}
+
+.tk .tk-check {
+  width: 24px;
+  height: 24px;
+  margin-top: 0;
+  border-radius: 50%;
+  border: 2px solid var(--faint);
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: transparent;
+  transition: all 0.15s ease;
+}
+.tk .tk-check:hover {
+  border-color: var(--accent);
+}
+.tk .tk-check.is-on {
+  background: var(--ok);
+  border-color: var(--ok);
+  color: #fff;
+}
+.tk .tk-check svg {
+  width: 14px;
+  height: 14px;
+}
+
+/* Top 3 */
+.tk .tk-top {
+  display: flex;
+  gap: 14px;
+  padding: 16px;
+  align-items: flex-start;
+}
+.tk .tk-top + .tk-top {
+  border-top: 1px solid var(--line);
+}
+.tk .tk-top-num {
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--accent);
+  width: 22px;
+  padding-top: 2px;
+  flex-shrink: 0;
+}
+.tk .tk-top-title {
+  font-size: 17px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.tk .tk-top-reason {
+  font-size: 13.5px;
+  color: var(--muted);
+  margin-top: 2px;
+}
+.tk .tk-top.is-done .tk-top-title {
+  color: var(--faint);
+  text-decoration: line-through;
+}
+
+/* Snelle invoer */
+.tk .tk-add {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  padding: 8px 0 10px;
+  background: linear-gradient(var(--bg) 80%, transparent);
+}
+.tk .tk-add-box {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 4px 4px 14px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  box-shadow: var(--shadow);
+}
+.tk .tk-add-box:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+.tk .tk-add-box input {
+  flex: 1;
+  min-width: 0;
+  background: transparent;
+  border: 0;
+  outline: none;
+  font: inherit;
+  font-size: 16px;
+  color: var(--text);
+  padding: 8px 0;
+}
+.tk .tk-add-box input::placeholder {
+  color: var(--faint);
+}
+.tk .tk-add-preview {
+  margin-top: 8px;
+  padding: 10px 12px;
+  font-size: 14px;
+}
+.tk .tk-kbd {
+  font-size: 11px;
+  padding: 1px 6px;
+  border: 1px solid var(--line);
+  border-bottom-width: 2px;
+  border-radius: 5px;
+  color: var(--faint);
+}
+.tk .tk-mic.is-on {
+  background: var(--danger-soft);
+  color: var(--danger);
+  animation: tk-pulse 1.2s ease-in-out infinite;
+}
+@keyframes tk-pulse {
+  50% {
+    box-shadow: 0 0 0 6px var(--danger-soft);
+  }
+}
+
+/* Sheet */
+.tk .tk-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  background: rgba(0, 0, 0, 0.35);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  animation: tk-fade 0.15s ease;
+}
+.tk .tk-sheet {
+  width: 100%;
+  max-width: 560px;
+  max-height: 92vh;
+  max-height: 92dvh;
+  overflow-y: auto;
+  background: var(--surface);
+  border-radius: 18px 18px 0 0;
+  padding: 18px 18px calc(18px + env(safe-area-inset-bottom));
+  animation: tk-up 0.2s ease;
+}
+@media (min-width: 640px) {
+  .tk .tk-overlay {
+    align-items: center;
+  }
+  .tk .tk-sheet {
+    border-radius: 18px;
+  }
+}
+@keyframes tk-fade {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes tk-up {
+  from {
+    transform: translateY(24px);
+    opacity: 0;
+  }
+}
+.tk .tk-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.tk .tk-label {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+/* Toast */
+.tk .tk-toast {
+  position: fixed;
+  left: 50%;
+  bottom: calc(84px + env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  z-index: 60;
+  max-width: calc(100vw - 32px);
+  padding: 10px 14px;
+  border-radius: 12px;
+  background: var(--text);
+  color: var(--bg);
+  font-size: 14px;
+  box-shadow: var(--shadow);
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  animation: tk-up 0.2s ease;
+}
+.tk .tk-toast button {
+  font-weight: 700;
+  white-space: nowrap;
+  color: var(--accent-soft);
+}
+@media (min-width: 900px) {
+  .tk .tk-toast {
+    bottom: 24px;
+  }
+}
+
+/* Stappen bij de dagafsluiting */
+.tk .tk-steps {
+  display: flex;
+  gap: 6px;
+}
+.tk .tk-steps span {
+  flex: 1;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--line);
+}
+.tk .tk-steps span.is-on {
+  background: var(--accent);
+}
+
+.tk .tk-empty {
+  padding: 28px 16px;
+  text-align: center;
+  color: var(--muted);
+  font-size: 15px;
+}

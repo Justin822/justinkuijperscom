@@ -1,0 +1,46 @@
+import { NextResponse } from "next/server";
+import { addDays } from "@/lib/taken/dates";
+import { getDay, getTasks, saveDay, saveTasks } from "@/lib/taken/store";
+import { dayFrom, fail } from "@/lib/taken/server";
+import type { Task } from "@/lib/taken/types";
+import { applyPatch } from "@/lib/taken/validate";
+
+export const dynamic = "force-dynamic";
+
+// Dagafsluiting: afgevinkte taken op af, de rest van vandaag schuift door (teller +1).
+
+export async function POST(request: Request) {
+  try {
+    const body = await request.json().catch(() => ({}));
+    const date = dayFrom(body?.date);
+    const done: string[] = Array.isArray(body?.done) ? body.done : [];
+    const postpone: string[] = Array.isArray(body?.postpone) ? body.postpone : [];
+    const tomorrow = addDays(date, 1);
+    const now = Date.now();
+
+    const changed: Task[] = [];
+    for (const task of await getTasks()) {
+      if (done.includes(task.id) && task.status !== "af") {
+        changed.push(applyPatch(task, { status: "af" }, now));
+      } else if (postpone.includes(task.id) && task.status !== "af") {
+        changed.push(
+          applyPatch(
+            task,
+            {
+              postponed: task.postponed + 1,
+              planDate: task.planDate && task.planDate <= date ? tomorrow : task.planDate,
+            },
+            now
+          )
+        );
+      }
+    }
+    await saveTasks(changed);
+
+    const plan = await getDay(date);
+    if (plan) await saveDay({ ...plan, closedAt: now });
+    return NextResponse.json({ tasks: changed });
+  } catch (error) {
+    return fail("close POST", error, "Kon de dag niet afsluiten.");
+  }
+}

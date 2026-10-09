@@ -52,3 +52,28 @@ Setup op Vercel:
    - `RTS_TEAM_CODE`: teamcode waarmee collega's het spel openen (hoofdletterongevoelig). Zonder teamcode ziet een bezoeker alleen een inlogscherm, geen namen of vragen. Lokaal is de code `sterren`.
    - `RTS_ADMIN_PIN`: pincode voor regiekamer en show. Lokaal is de pincode `1234`.
 3. Namen en vragen staan in `lib/rankingthestars/config.ts` (alleen server-side; ze gaan pas na de teamcode naar de browser). Pas alleen `name` aan, laat de `id` staan. Foto's kunnen in `public/rts-photos/`.
+
+## Taken (persoonlijke todo-app)
+
+Eén plek voor al je taken, met elke ochtend een top 3. Staat op `/app` (justinkuijpers.com/app). Kost €0 per jaar: geen AI, geen betaalde diensten.
+
+- **Snelle invoer**: typ een gewone zin, bijv. `Offerte Jansen vrijdag, Appèl, half uur`. De parser (`lib/taken/parse.ts`) herkent:
+  - **dagen**: vandaag, morgen, vrijdag, volgende week (dinsdag), deze week, eind van de maand, 16 okt, 16-10, over 3 dagen
+  - **harde deadline**: `uiterlijk`, `deadline` of `voor` ervoor, of `!` aan het eind
+  - **tijd**: 5 min, kwartier, half uur, 2u, halve dag
+  - **gebied**: als los stukje tussen komma's of als `#tag` (`#appel/leadgeneratie` zet ook het project)
+  - **impact**: `!!`, `#hoog`, `, belangrijk,`
+  - **lijsten**: `wachten op Piet`, `ooit`
+  - **plandag**: `@morgen` (de dag waarop je het wilt doen, los van de deadline)
+
+  Meerdere taken tegelijk: nieuwe regel, `;` of "en daarnaast". De microfoonknop gebruikt de spraakherkenning van je browser. Sneltoets `N` opent het invoerveld.
+- **Vandaag**: top 3 met één zin waarom, wisselen met één tik, "als er tijd over is" en wie je vandaag moet nabellen. De top 3 wordt bij de eerste keer openen van de dag gekozen (`lib/taken/score.ts`). Telt mee: deadlines (hard zwaarder), plandag, impact, hoe vaak doorgeschoven, korte taken en balans tussen gebieden. Maximaal één taak van een halve dag of meer.
+- **Inbox, Gebieden, Wachten op, Ooit** en een **dagafsluiting** in stappen: inbox naar nul, vandaag afronden (de rest schuift door), en na 3× doorschuiven kiezen: doen, inplannen, ooit of schrappen.
+- **Op je telefoon**: open de app in Safari en kies Deel → "Zet op beginscherm". Daarna werkt hij als een gewone app.
+
+Setup op Vercel:
+
+1. Zet `TAKEN_PASSWORD` (lang wachtwoord) in de env-variabelen en redeploy. Lokaal is het wachtwoord `taken`.
+2. Opslag gebruikt dezelfde Upstash Redis als Ranking the Stars (`KV_REST_API_URL`/`_TOKEN`, gratis tier). Zonder Redis gaat alles in een tijdelijk bestand dat op Vercel niet bewaard blijft.
+
+Gebieden en hun trefwoorden pas je aan in `lib/taken/config.ts`.
