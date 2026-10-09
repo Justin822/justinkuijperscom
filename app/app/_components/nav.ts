@@ -1,4 +1,4 @@
-import { CalendarIcon, ChartIcon, ListIcon, MoonIcon, NoteIcon, SunIcon } from "./icons";
+import { CalendarIcon, ChartIcon, GearIcon, ListIcon, MoonIcon, NoteIcon, SunIcon } from "./icons";
 
 export const NAV = [
   { href: "/app", label: "Vandaag", Icon: SunIcon },
@@ -10,4 +10,5 @@ export const NAV = [
 export const EXTRA = [
   { href: "/app/review", label: "Weekreview", Icon: ChartIcon },
   { href: "/app/afsluiten", label: "Dag afsluiten", Icon: MoonIcon },
+  { href: "/app/instellingen", label: "Instellingen", Icon: GearIcon },
 ];

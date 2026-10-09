@@ -6,8 +6,8 @@ import { STATUS_LABEL } from "@/lib/taken/config";
 import { dailyTitle, noteTitle, notePreview } from "@/lib/taken/notes";
 import { parseTask, splitEntries } from "@/lib/taken/parse";
 import type { Task } from "@/lib/taken/types";
-import { ChartIcon, MoonIcon, NoteIcon, PlayIcon, PlusIcon, SearchIcon } from "./icons";
-import { NAV } from "./nav";
+import { NoteIcon, PlayIcon, PlusIcon, SearchIcon } from "./icons";
+import { EXTRA, NAV } from "./nav";
 import { useTaken } from "./TakenContext";
 
 // ⌘K: zoeken in taken en notities, iets toevoegen of naar een scherm gaan.
@@ -128,8 +128,13 @@ export default function CommandPalette() {
         icon: <Icon />,
         run: () => router.push(href),
       })),
-      { id: "review", group: "Ga naar", label: "Weekreview", icon: <ChartIcon />, run: () => router.push("/app/review") },
-      { id: "close", group: "Ga naar", label: "Dag afsluiten", icon: <MoonIcon />, run: () => router.push("/app/afsluiten") },
+      ...EXTRA.map(({ href, label, Icon }) => ({
+        id: href,
+        group: "Ga naar",
+        label: href === "/app/instellingen" ? "Instellingen en agenda's koppelen" : label,
+        icon: <Icon />,
+        run: () => router.push(href),
+      })),
     ];
     list.push(...commands.filter((c) => !q || norm(c.label).includes(q)));
     return list;

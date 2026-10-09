@@ -1,12 +1,13 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { blockInterval, firstFreeSlot, freeMinutes, WORKDAY } from "@/lib/taken/agenda";
+import Link from "next/link";
+import { blockInterval, firstFreeSlot, freeMinutes } from "@/lib/taken/agenda";
 import { estimateLabel, OPEN_STATUSES } from "@/lib/taken/config";
 import { addDays, formatLong, MONTHS, weekday, WEEKDAYS_SHORT } from "@/lib/taken/dates";
 import { rankTasks } from "@/lib/taken/score";
 import type { Task } from "@/lib/taken/types";
-import { ChevronLeftIcon, ChevronRightIcon } from "../../_components/icons";
+import { ChevronLeftIcon, ChevronRightIcon, GearIcon } from "../../_components/icons";
 import PageHeader from "../../_components/PageHeader";
 import { focusLabel } from "../../_components/TaskRow";
 import Timeline from "../../_components/Timeline";
@@ -21,7 +22,7 @@ const toTime = (ms: number) => {
 };
 
 export default function AgendaPage() {
-  const { tasks, today, updateTask, openTask, plan, notify } = useTaken();
+  const { tasks, today, updateTask, openTask, plan, notify, workday: WORKDAY } = useTaken();
   const [date, setDate] = useState(today);
   const [placing, setPlacing] = useState<string | null>(null);
   const [picker, setPicker] = useState(false);
@@ -122,6 +123,9 @@ export default function AgendaPage() {
         <button type="button" className="tk-icon-btn" onClick={() => setDate(addDays(date, 7))} aria-label="Volgende week">
           <ChevronRightIcon />
         </button>
+        <Link href="/app/instellingen" className="tk-icon-btn" aria-label="Agenda's koppelen" title="Agenda's koppelen">
+          <GearIcon />
+        </Link>
       </PageHeader>
 
       <div className="tk-week">
@@ -153,13 +157,19 @@ export default function AgendaPage() {
       </div>
 
       {data && !data.configured && (
-        <p className="tk-faint mt-2 text-sm">
-          Nog geen agenda gekoppeld. Zet je geheime iCal-link in <code>AGENDA_ICS_URLS</code> (zie README). Timeblocks voor taken werken al.
-        </p>
+        <div className="tk-banner is-soft mt-3">
+          <span className="min-w-0 flex-1">Koppel je Google Agenda of Outlook om je afspraken hier te zien.</span>
+          <Link href="/app/instellingen" className="tk-btn tk-btn-sm">
+            Agenda koppelen
+          </Link>
+        </div>
       )}
       {data?.errors?.length ? (
         <p className="mt-2 text-sm" style={{ color: "var(--warn)" }}>
-          Niet bereikbaar: {data.errors.join(", ")}
+          Niet bereikbaar: {data.errors.join(", ")} ·{" "}
+          <Link href="/app/instellingen" className="underline">
+            instellingen
+          </Link>
         </p>
       ) : null}
 

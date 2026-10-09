@@ -2,7 +2,7 @@ import { promises as fs } from "fs";
 import os from "os";
 import path from "path";
 import { hasRedis, redis } from "@/lib/redis";
-import type { DayPlan, Note, Task } from "./types";
+import type { DayPlan, Note, Settings, Task } from "./types";
 import { normalizeTask } from "./validate";
 
 // Opslag voor de taken-app: Upstash Redis als die gekoppeld is,
@@ -10,11 +10,23 @@ import { normalizeTask } from "./validate";
 
 const TASKS_KEY = "taken:tasks";
 const NOTES_KEY = "taken:notes";
+const SETTINGS_KEY = "taken:settings";
+
+export const DEFAULT_SETTINGS: Settings = {
+  icsSources: [],
+  workday: { start: "09:00", end: "17:30" },
+  google: null,
+};
 const dayKey = (date: string) => `taken:day:${date}`;
 
 export const storageKind: "redis" | "file" = hasRedis ? "redis" : "file";
 
-type FileData = { tasks: Record<string, Task>; days: Record<string, DayPlan>; notes: Record<string, Note> };
+type FileData = {
+  tasks: Record<string, Task>;
+  days: Record<string, DayPlan>;
+  notes: Record<string, Note>;
+  settings?: Settings;
+};
 
 const dataFile =
   process.env.TAKEN_DATA_FILE ||
@@ -23,7 +35,7 @@ const dataFile =
 async function readFile(): Promise<FileData> {
   try {
     const data = JSON.parse(await fs.readFile(dataFile, "utf8"));
-    return { tasks: data.tasks || {}, days: data.days || {}, notes: data.notes || {} };
+    return { tasks: data.tasks || {}, days: data.days || {}, notes: data.notes || {}, settings: data.settings };
   } catch {
     return { tasks: {}, days: {}, notes: {} };
   }
@@ -139,4 +151,28 @@ export async function deleteNote(id: string) {
     return;
   }
   await redis(["HDEL", NOTES_KEY, id]);
+}
+
+export async function getSettings(): Promise<Settings> {
+  const stored =
+    storageKind === "file"
+      ? (await readFile()).settings
+      : parse<Settings>((await redis(["GET", SETTINGS_KEY])) as string | null);
+  return { ...DEFAULT_SETTINGS, ...(stored || {}) };
+}
+
+export async function saveSettings(settings: Settings) {
+  if (storageKind === "file") {
+    const data = await readFile();
+    await writeFile({ ...data, settings });
+    return;
+  }
+  await redis(["SET", SETTINGS_KEY, JSON.stringify(settings)]);
+}
+
+/** Instellingen bijwerken op basis van de laatste stand (voorkomt dat twee wijzigingen elkaar overschrijven). */
+export async function updateSettings(change: (s: Settings) => Settings): Promise<Settings> {
+  const next = change(await getSettings());
+  await saveSettings(next);
+  return next;
 }

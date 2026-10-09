@@ -1,71 +1,18 @@
-import { addDays } from "./dates";
-import { DEFAULT_TZ, expandEvents, parseIcs, zonedToUtc } from "./ics";
-import type { CalendarEvent, Task } from "./types";
+import type { Task } from "./types";
 
-// Agenda's ophalen via hun geheime iCal-link (AGENDA_ICS_URLS), alleen lezen.
+// Rekenhulpjes voor de agenda, bruikbaar in de browser én op de server.
+// Het ophalen van afspraken (iCal en Google) staat in agenda-server.ts.
 
+/** Standaard werkdag; je eigen tijden staan in de instellingen. */
 export const WORKDAY = { start: "09:00", end: "17:30" };
 
-type Source = { name: string; url: string };
+export type Interval = [number, number];
 
-export function agendaSources(): Source[] {
-  return (process.env.AGENDA_ICS_URLS || "")
-    .split(/[,\n]+/)
-    .map((s) => s.trim())
-    .filter(Boolean)
-    .map((entry, i) => {
-      const bar = entry.indexOf("|");
-      const name = bar > 0 ? entry.slice(0, bar).trim() : `Agenda ${i + 1}`;
-      const url = (bar > 0 ? entry.slice(bar + 1) : entry).trim().replace(/^webcal:\/\//i, "https://");
-      return { name, url };
-    })
-    .filter((s) => /^https?:\/\//i.test(s.url));
-}
-
-const cache = new Map<string, { at: number; raws: ReturnType<typeof parseIcs> }>();
-const TTL = 5 * 60 * 1000;
-
-async function load(source: Source) {
-  const hit = cache.get(source.url);
-  if (hit && Date.now() - hit.at < TTL) return hit.raws;
-  const res = await fetch(source.url, { cache: "no-store", headers: { Accept: "text/calendar" } });
-  if (!res.ok) throw new Error(`${source.name}: ${res.status}`);
-  const raws = parseIcs(await res.text());
-  cache.set(source.url, { at: Date.now(), raws });
-  return raws;
-}
-
-/** Afspraken tussen twee lokale datums (inclusief), plus foutmeldingen per agenda. */
-export async function getEvents(fromDate: string, toDate: string) {
-  const sources = agendaSources();
-  // Ruim venster in UTC; de browser filtert per lokale dag.
-  const from = zonedToUtc(fromDate, "00:00", DEFAULT_TZ) - 14 * 3600000;
-  const to = zonedToUtc(addDays(toDate, 1), "00:00", DEFAULT_TZ) + 14 * 3600000;
-  const errors: string[] = [];
-  const results = await Promise.all(
-    sources.map(async (s) => {
-      try {
-        return expandEvents(await load(s), from, to, s.name);
-      } catch (error: any) {
-        errors.push(error?.message || s.name);
-        return [] as CalendarEvent[];
-      }
-    })
-  );
-  return {
-    configured: sources.length > 0,
-    events: results.flat().sort((a, b) => a.start - b.start),
-    errors,
-  };
-}
-
-type Interval = [number, number];
-
-/** Tijdstip-venster van een timeblock; tz alleen nodig op de server. */
-export function blockInterval(task: Task, tz?: string): Interval | null {
+/** Tijdstip-venster van een timeblock; op de server met een omrekening naar Nederlandse tijd. */
+export function blockInterval(task: Task, toMs?: (date: string, time: string) => number): Interval | null {
   if (!task.blockStart) return null;
   const [date, time] = task.blockStart.split("T");
-  const start = tz ? zonedToUtc(date, time, tz) : new Date(`${date}T${time}:00`).getTime();
+  const start = toMs ? toMs(date, time) : new Date(`${date}T${time}:00`).getTime();
   return [start, start + (task.estimate || 30) * 60000];
 }
 
@@ -85,23 +32,6 @@ export function freeMinutes(busy: Interval[], dayStart: number, dayEnd: number, 
     cursor = Math.max(cursor, b);
   }
   return Math.round((dayEnd - start - taken) / 60000);
-}
-
-/** Vrije werktijd op een dag (server, tijdzone Nederland). */
-export async function freeMinutesOn(date: string, tasks: Task[]): Promise<number | null> {
-  if (!agendaSources().length) return null;
-  const { events } = await getEvents(date, date);
-  const busy: Interval[] = events.filter((e) => e.busy).map((e) => [e.start, e.end]);
-  for (const t of tasks) {
-    if (t.status === "af" || !t.blockStart?.startsWith(date)) continue;
-    const interval = blockInterval(t, DEFAULT_TZ);
-    if (interval) busy.push(interval);
-  }
-  return freeMinutes(
-    busy,
-    zonedToUtc(date, WORKDAY.start, DEFAULT_TZ),
-    zonedToUtc(date, WORKDAY.end, DEFAULT_TZ)
-  );
 }
 
 /** Eerste vrije plek van `duration` ms tussen `from` en `until`, op hele kwartieren; null als het niet past. */

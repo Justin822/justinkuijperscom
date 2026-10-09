@@ -2,7 +2,8 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { addDays, localToday } from "@/lib/taken/dates";
-import type { CalendarEvent, DayPlan, Note, Task } from "@/lib/taken/types";
+import { WORKDAY } from "@/lib/taken/agenda";
+import type { CalendarEvent, DayPlan, Note, PublicSettings, Task } from "@/lib/taken/types";
 
 // Alle taken en notities staan in de browser; wijzigingen zijn direct zichtbaar
 // en gaan op de achtergrond naar de server (bij een fout terug naar de oude stand).
@@ -51,6 +52,9 @@ type Ctx = {
   setFocusOpen: (open: boolean) => void;
   palette: PaletteMode | null;
   openPalette: (mode?: PaletteMode | null) => void;
+  settings: PublicSettings | null;
+  setSettings: (s: PublicSettings) => void;
+  workday: { start: string; end: string };
 };
 
 const TakenContext = createContext<Ctx | null>(null);
@@ -105,6 +109,7 @@ export function TakenProvider({ children }: { children: React.ReactNode }) {
   // Alleen in de browser renderen: datums en tijden hangen af van de tijdzone van je telefoon,
   // die de server (UTC) niet kent. Zo komen server-HTML en browser nooit uit elkaar.
   const [mounted, setMounted] = useState(false);
+  const [settings, setSettingsState] = useState<PublicSettings | null>(null);
   const addRef = useRef<HTMLInputElement | null>(null);
   const tasksRef = useRef<Task[]>([]);
   tasksRef.current = tasks;
@@ -119,12 +124,14 @@ export function TakenProvider({ children }: { children: React.ReactNode }) {
 
   const reload = useCallback(async () => {
     try {
-      const [t, n] = await Promise.all([
+      const [t, n, st] = await Promise.all([
         api<{ tasks: Task[] }>("/api/taken/tasks"),
         api<{ notes: Note[] }>("/api/taken/notes"),
+        api<{ settings: PublicSettings }>("/api/taken/settings").catch(() => null),
       ]);
       setTasks(t.tasks);
       setNotes(n.notes);
+      if (st) setSettingsState(st.settings);
       setError(null);
     } catch (err: any) {
       setError(err.message);
@@ -192,11 +199,12 @@ export function TakenProvider({ children }: { children: React.ReactNode }) {
       if (patch.status === "af" && before.status !== "af") optimistic.doneAt = Date.now();
       mergeTasks([optimistic]);
       try {
-        const data = await api<{ task: Task; created?: Task[] }>(`/api/taken/tasks/${id}`, {
+        const data = await api<{ task: Task; created?: Task[]; sync?: string }>(`/api/taken/tasks/${id}`, {
           method: "PATCH",
           body: JSON.stringify({ ...patch, today: localToday() }),
         });
         mergeTasks([data.task, ...(data.created || [])]);
+        if (data.sync === "fout") notify("Opgeslagen, maar niet in Google Agenda gezet");
       } catch (err: any) {
         mergeTasks([before]);
         notify(err.message);
@@ -322,6 +330,12 @@ export function TakenProvider({ children }: { children: React.ReactNode }) {
 
   const openPalette = useCallback((mode: PaletteMode | null = "search") => setPalette(mode), []);
 
+  // Na een wijziging in de instellingen: agenda's opnieuw ophalen.
+  const setSettings = useCallback((s: PublicSettings) => {
+    agendaCache.clear();
+    setSettingsState(s);
+  }, []);
+
   const value = useMemo<Ctx>(
     () => ({
       tasks,
@@ -354,6 +368,9 @@ export function TakenProvider({ children }: { children: React.ReactNode }) {
       setFocusOpen,
       palette,
       openPalette,
+      settings,
+      setSettings,
+      workday: settings?.workday || WORKDAY,
     }),
     [
       tasks,
@@ -383,6 +400,8 @@ export function TakenProvider({ children }: { children: React.ReactNode }) {
       focusOpen,
       palette,
       openPalette,
+      settings,
+      setSettings,
     ]
   );
 
@@ -401,7 +420,10 @@ export type AgendaData = { events: CalendarEvent[]; configured: boolean; errors:
 
 /** Afspraken tussen twee datums; houdt 2 minuten een cache vast zodat wisselen tussen schermen snel is. */
 export function useAgenda(from: string, to: string) {
-  const key = `${from}|${to}`;
+  const { settings } = useTaken();
+  // Andere instellingen (agenda gekoppeld of aangevinkt) = opnieuw ophalen.
+  const version = JSON.stringify([settings?.icsSources.map((s) => s.id), settings?.google.calendars.filter((c) => c.selected).map((c) => c.id), settings?.google.connected]);
+  const key = `${from}|${to}|${version}`;
   const [data, setData] = useState<AgendaData | null>(() => agendaCache.get(key)?.data || null);
   const [loading, setLoading] = useState(false);
 
@@ -423,7 +445,7 @@ export function useAgenda(from: string, to: string) {
     };
   }, [key, from, to]);
 
-  return { data, loading };
+  return { data: data || agendaCache.get(key)?.data || null, loading };
 }
 
 /** Afspraken die (deels) op een lokale dag vallen. */

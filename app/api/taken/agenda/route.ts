@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getEvents } from "@/lib/taken/agenda";
+import { getEvents } from "@/lib/taken/agenda-server";
 import { addDays, diffDays } from "@/lib/taken/dates";
 import { dayFrom, fail, noStore } from "@/lib/taken/server";
 

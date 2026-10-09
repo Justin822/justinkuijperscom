@@ -61,7 +61,8 @@ Vier tabs, plus weekreview en dagafsluiting:
 
 - **Vandaag**: top 3 met één zin waarom, focusknop en wisselen per taak, je afspraken van vandaag, hoeveel werktijd er nog vrij is, wie je moet nabellen, en "als er tijd over is".
 - **Taken**: één lijst met Inbox / Open / Wachten op / Ooit / Af, filter per gebied en zoeken. Open is gegroepeerd per gebied en project. In de Inbox tik je een taak aan om hem een plek te geven.
-- **Agenda**: weekstrip en dagtijdlijn met je afspraken (alleen lezen via een iCal-link) en timeblocks voor taken. Tik op een taak en dan op een tijd, kies "Eerste vrije plek", of sleep op de laptop.
+- **Agenda**: weekstrip en dagtijdlijn met je afspraken en timeblocks voor taken. Tik op een taak en dan op een tijd, kies "Eerste vrije plek", of sleep op de laptop. Ingeplande taken komen als afspraak in een eigen agenda **Planner** in Google Agenda.
+- **Instellingen**: Google Agenda koppelen met één knop, Outlook (of een andere agenda) toevoegen met een iCal-link, en je werkdag instellen.
 - **Notities**: een lijst met zoeken, vastpinnen en gebieden. Notities slaan vanzelf op. Met **Dagnotitie** open je in één tik de notitie van vandaag. Regels die beginnen met `[ ]` zet je met één knop om in taken (ze worden daarna `[→]`). `- ` en `[ ] ` lopen door als lijstje.
 - **Weekreview**: hoeveel dagen je de top 3 haalde (doel 4 van 5), hoeveel dagen je afsloot met een lege inbox, per gebied wat af is, wat open staat en hoeveel focustijd erin zat, en wat blijft liggen. Je focus voor volgende week sla je op als notitie.
 - **Dag afsluiten**: inbox naar nul, vandaag afronden (de rest schuift door), en na 3× doorschuiven kiezen: doen, inplannen, ooit of schrappen.
@@ -87,9 +88,21 @@ Bij een terugkerende taak staat de volgende keer klaar zodra je hem afvinkt. Mee
 
 1. `TAKEN_PASSWORD`: wachtwoord voor de app. Lokaal is het `taken`.
 2. Opslag gebruikt dezelfde Upstash Redis als Ranking the Stars (`KV_REST_API_URL`/`_TOKEN`, gratis tier). Zonder Redis gaat alles in een tijdelijk bestand dat op Vercel niet bewaard blijft.
-3. Optioneel `AGENDA_ICS_URLS`: één of meer geheime iCal-links, gescheiden door komma's, met een naam ervoor, bijv. `Privé|https://calendar.google.com/calendar/ical/…/basic.ics, Appèl|https://outlook.office365.com/owa/calendar/…/calendar.ics`. Daarna opnieuw deployen.
-   - **Google Agenda**: Instellingen → klik links je agenda aan → "Agenda integreren" → kopieer **"Geheim adres in iCal-indeling"**.
-   - **Outlook**: Instellingen → Agenda → Gedeelde agenda's → "Een agenda publiceren" → kies de agenda en "Kan alle details bekijken" → kopieer de **ICS**-link. Dit kan bij Appèl uitgezet zijn door IT.
-   - De link geeft leestoegang tot je agenda; deel hem met niemand. De app haalt hem hooguit eens per 5 minuten op.
+3. Agenda's koppel je in de app zelf: **Instellingen** (zijbalk, of het tandwiel in Agenda).
+   - **Outlook**: plak de ICS-link. In Outlook op het web vind je die via Instellingen → Agenda → Gedeelde agenda's → "Een agenda publiceren" → "Kan alle details bekijken" → ICS-link. Ontbreekt die optie bij Appèl, dan heeft IT publiceren uitgezet.
+   - **Google Agenda**: klik "Koppel Google Agenda". Daarvoor is eenmalig een eigen (gratis) Google-client nodig, zie hieronder.
 
-Gebieden en hun trefwoorden pas je aan in `lib/taken/config.ts`. De werkdag voor "vrije tijd" (09:00–17:30) staat in `lib/taken/agenda.ts`.
+### Eenmalig: Google-koppeling instellen (Workspace, ± 10 minuten)
+
+1. Ga naar [console.cloud.google.com](https://console.cloud.google.com), ingelogd met je Workspace-account, en maak een nieuw project aan (bijv. "Planner").
+2. APIs en services → Bibliotheek → zoek **Google Calendar API** → Inschakelen.
+3. APIs en services → OAuth-toestemmingsscherm → type **Intern** (alleen jouw Workspace; geen verificatie en de koppeling verloopt niet). Vul een app-naam en je e-mailadres in.
+4. APIs en services → Inloggegevens → Inloggegevens maken → **OAuth-client-ID** → type **Webapplicatie**. Bij "Geautoriseerde omleidings-URI's":
+   - `https://justinkuijpers.com/api/taken/google/callback`
+   - draait de site op `www.`, voeg dan ook `https://www.justinkuijpers.com/api/taken/google/callback` toe
+5. Zet de client-ID en het clientgeheim in Vercel als `GOOGLE_CLIENT_ID` en `GOOGLE_CLIENT_SECRET` en deploy opnieuw.
+6. In de app: Instellingen → **Koppel Google Agenda**.
+
+Wat de app mag: al je agenda's **lezen**, en alleen in de agenda **Planner** (die hij zelf aanmaakt) afspraken zetten, wijzigen en verwijderen. Je andere agenda's kan hij niet aanpassen. Ontkoppelen kan in Instellingen; de agenda Planner blijft dan in Google staan.
+
+Gebieden en hun trefwoorden pas je aan in `lib/taken/config.ts`. Je werkdag (voor "vrije tijd" en de top 3) stel je in bij Instellingen.
