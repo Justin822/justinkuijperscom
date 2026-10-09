@@ -59,7 +59,11 @@ export async function POST(request: Request) {
         return reply();
       }
       case "googleRefresh": {
-        await refreshCalendars();
+        try {
+          await refreshCalendars();
+        } catch (error: any) {
+          return bad(`Agenda's ophalen mislukt: ${error?.message || "onbekende fout"}`);
+        }
         return reply();
       }
       case "googleDisconnect": {

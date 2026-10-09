@@ -49,16 +49,49 @@ export function authUrl(redirect: string, state: string) {
   return `${AUTH_BASE}/o/oauth2/v2/auth?${params}`;
 }
 
-async function tokenRequest(body: Record<string, string>) {
-  const res = await fetch(`${TOKEN_BASE}/token`, {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams({ client_id: clientId(), client_secret: clientSecret(), ...body }),
-    cache: "no-store",
-  });
-  const json = await res.json().catch(() => ({}));
-  if (!res.ok) throw new GoogleError(json.error_description || json.error || `Google ${res.status}`, res.status);
-  return json as { access_token: string; expires_in: number; refresh_token?: string; id_token?: string; error?: string };
+const TIMEOUT = 7000;
+
+/**
+ * Eén verzoek naar Google met een tijdslimiet (inclusief het lezen van het antwoord).
+ * Logt per stap hoe lang het duurde, zonder tokens of codes, zodat je in de Vercel-logs ziet waar het hapert.
+ */
+async function request(url: string, init: RequestInit, label: string, ms = TIMEOUT) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), ms);
+  const started = Date.now();
+  try {
+    const res = await fetch(url, { ...init, signal: controller.signal, cache: "no-store" });
+    const text = res.status === 204 ? "" : await res.text();
+    console.log(`taken google: ${label} ${res.status} in ${Date.now() - started}ms`);
+    let data: any = {};
+    try {
+      data = text ? JSON.parse(text) : {};
+    } catch {
+      data = {};
+    }
+    return { status: res.status, ok: res.ok, data };
+  } catch (error: any) {
+    const reason = error?.cause?.code || error?.cause?.message || error?.message || "onbekend";
+    console.error(`taken google: ${label} mislukt na ${Date.now() - started}ms (${reason})`);
+    if (controller.signal.aborted) throw new GoogleError(`Google (${label}): geen antwoord binnen ${ms / 1000} s`);
+    throw new GoogleError(`Google (${label}): netwerkfout (${reason})`);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function tokenRequest(body: Record<string, string>, label: string) {
+  const { ok, status, data } = await request(
+    `${TOKEN_BASE}/token`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({ client_id: clientId(), client_secret: clientSecret(), ...body }).toString(),
+    },
+    label
+  );
+  if (!ok) throw new GoogleError(data.error_description || data.error || `Google ${status}`, status);
+  return data as { access_token: string; expires_in: number; refresh_token?: string; id_token?: string };
 }
 
 function emailFromIdToken(idToken?: string): string | null {
@@ -76,7 +109,7 @@ let cachedToken: { token: string; until: number; refresh: string } | null = null
 async function accessToken(link: GoogleLink): Promise<string> {
   if (cachedToken && cachedToken.refresh === link.refreshToken && Date.now() < cachedToken.until) return cachedToken.token;
   try {
-    const t = await tokenRequest({ grant_type: "refresh_token", refresh_token: link.refreshToken });
+    const t = await tokenRequest({ grant_type: "refresh_token", refresh_token: link.refreshToken }, "token vernieuwen");
     cachedToken = { token: t.access_token, until: Date.now() + Math.min(t.expires_in || 3600, 3000) * 1000, refresh: link.refreshToken };
     return t.access_token;
   } catch (error: any) {
@@ -88,28 +121,29 @@ async function accessToken(link: GoogleLink): Promise<string> {
   }
 }
 
-async function api<T = any>(link: GoogleLink, path: string, init: RequestInit = {}, retried = false): Promise<T> {
+async function api<T = any>(link: GoogleLink, path: string, label: string, init: RequestInit = {}, retried = false): Promise<T> {
   const token = await accessToken(link);
-  const res = await fetch(`${API_BASE}/calendar/v3${path}`, {
-    ...init,
-    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json", ...(init.headers || {}) },
-    cache: "no-store",
-  });
-  if (res.status === 401 && !retried) {
+  const { ok, status, data } = await request(
+    `${API_BASE}/calendar/v3${path}`,
+    {
+      ...init,
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json", ...(init.headers || {}) },
+    },
+    label
+  );
+  if (status === 401 && !retried) {
     cachedToken = null;
-    return api(link, path, init, true);
+    return api(link, path, label, init, true);
   }
-  if (res.status === 204) return undefined as T;
-  const json = await res.json().catch(() => ({}));
-  if (!res.ok) throw new GoogleError(json.error?.message || `Google Agenda ${res.status}`, res.status);
-  return json;
+  if (!ok) throw new GoogleError(data.error?.message || `Google Agenda ${status}`, status);
+  return data as T;
 }
 
 const enc = encodeURIComponent;
 
 // ---------- Koppelen ----------
 async function listCalendars(link: GoogleLink): Promise<GoogleCalendar[]> {
-  const data = await api<{ items?: any[] }>(link, "/users/me/calendarList?maxResults=250");
+  const data = await api<{ items?: any[] }>(link, "/users/me/calendarList?maxResults=250", "agendalijst");
   return (data.items || []).map((c) => ({
     id: c.id,
     name: c.summaryOverride || c.summary || c.id,
@@ -121,7 +155,7 @@ async function listCalendars(link: GoogleLink): Promise<GoogleCalendar[]> {
 async function ensurePlanner(link: GoogleLink, calendars: GoogleCalendar[]): Promise<string | null> {
   if (link.plannerCalendarId && calendars.some((c) => c.id === link.plannerCalendarId)) return link.plannerCalendarId;
   try {
-    const created = await api<{ id: string }>(link, "/calendars", {
+    const created = await api<{ id: string }>(link, "/calendars", "Planner aanmaken", {
       method: "POST",
       body: JSON.stringify({
         summary: PLANNER_NAME,
@@ -136,33 +170,28 @@ async function ensurePlanner(link: GoogleLink, calendars: GoogleCalendar[]): Pro
   }
 }
 
-/** Code van Google omwisselen voor een koppeling, agenda's ophalen en "Planner" klaarzetten. */
+/**
+ * Terug van Google: alleen de code omwisselen en de koppeling bewaren, zodat dit verzoek kort blijft.
+ * Agenda's ophalen en "Planner" klaarzetten gebeurt daarna in refreshCalendars().
+ */
 export async function connect(code: string, redirect: string) {
-  const t = await tokenRequest({ grant_type: "authorization_code", code, redirect_uri: redirect });
+  const t = await tokenRequest({ grant_type: "authorization_code", code, redirect_uri: redirect }, "code omwisselen");
   const previous = (await getSettings()).google;
   const refreshToken = t.refresh_token || previous?.refreshToken;
   if (!refreshToken) throw new GoogleError("Google gaf geen blijvende toegang terug. Probeer opnieuw te koppelen.");
   cachedToken = { token: t.access_token, until: Date.now() + Math.min(t.expires_in || 3600, 3000) * 1000, refresh: refreshToken };
 
-  let link: GoogleLink = {
+  const link: GoogleLink = {
     refreshToken,
     email: emailFromIdToken(t.id_token) || previous?.email || null,
-    calendars: [],
+    // Eerdere keuzes (welke agenda's tonen) en de agenda Planner blijven bewaard bij opnieuw koppelen.
+    calendars: previous?.calendars || [],
     plannerCalendarId: previous?.plannerCalendarId || null,
     needsReconnect: false,
   };
-  const calendars = await listCalendars(link);
-  const plannerCalendarId = await ensurePlanner(link, calendars);
-  // Eerdere keuzes (welke agenda's tonen) blijven bewaard bij opnieuw koppelen.
-  const before = new Map((previous?.calendars || []).map((c) => [c.id, c.selected]));
-  link = {
-    ...link,
-    plannerCalendarId,
-    calendars: calendars
-      .filter((c) => c.id !== plannerCalendarId)
-      .map((c) => ({ ...c, selected: before.has(c.id) ? (before.get(c.id) as boolean) : c.selected })),
-  };
+  const started = Date.now();
   await updateSettings((s) => ({ ...s, google: link }));
+  console.log(`taken google: koppeling opgeslagen in ${Date.now() - started}ms`);
   eventCache.clear();
   return link;
 }
@@ -170,7 +199,7 @@ export async function connect(code: string, redirect: string) {
 export async function disconnect() {
   const link = (await getSettings()).google;
   if (link) {
-    await fetch(`${TOKEN_BASE}/revoke?token=${enc(link.refreshToken)}`, { method: "POST", cache: "no-store" }).catch(() => {});
+    await request(`${TOKEN_BASE}/revoke?token=${enc(link.refreshToken)}`, { method: "POST" }, "toegang intrekken").catch(() => {});
   }
   cachedToken = null;
   eventCache.clear();
@@ -237,7 +266,8 @@ export async function googleEvents(from: number, to: number): Promise<{ events: 
             if (pageToken) params.set("pageToken", pageToken);
             const data = await api<{ items?: any[]; nextPageToken?: string }>(
               link,
-              `/calendars/${enc(calendar.id)}/events?${params}`
+              `/calendars/${enc(calendar.id)}/events?${params}`,
+              "afspraken"
             );
             for (const item of data.items || []) {
               const event = toEvent(calendar, item);
@@ -267,11 +297,15 @@ export async function selectCalendars(selected: string[]) {
   );
 }
 
-/** Agendalijst opnieuw ophalen (nieuwe agenda's in Google verschijnen dan ook in de app). */
+/**
+ * Agendalijst ophalen (nieuwe agenda's in Google verschijnen dan ook in de app)
+ * en de agenda "Planner" klaarzetten als die er nog niet is.
+ */
 export async function refreshCalendars() {
   const link = (await getSettings()).google;
   if (!link) return null;
   const fresh = await listCalendars(link);
+  const plannerCalendarId = await ensurePlanner(link, fresh);
   const before = new Map(link.calendars.map((c) => [c.id, c.selected]));
   eventCache.clear();
   return updateSettings((s) =>
@@ -280,8 +314,9 @@ export async function refreshCalendars() {
           ...s,
           google: {
             ...s.google,
+            plannerCalendarId,
             calendars: fresh
-              .filter((c) => c.id !== s.google!.plannerCalendarId)
+              .filter((c) => c.id !== plannerCalendarId)
               .map((c) => ({ ...c, selected: before.has(c.id) ? (before.get(c.id) as boolean) : c.selected })),
           },
         }
@@ -316,7 +351,7 @@ export async function syncBlock(before: Task | null, after: Task | null): Promis
   try {
     if (!after || !after.blockStart) {
       if (current) {
-        await api(link, `${calendar}/${enc(current)}`, { method: "DELETE" }).catch((error) => {
+        await api(link, `${calendar}/${enc(current)}`, "timeblock verwijderen", { method: "DELETE" }).catch((error) => {
           if (!(error instanceof GoogleError) || ![404, 410].includes(error.status)) throw error;
         });
       }
@@ -331,14 +366,14 @@ export async function syncBlock(before: Task | null, after: Task | null): Promis
     });
     if (current) {
       try {
-        await api(link, `${calendar}/${enc(current)}`, { method: "PATCH", body });
+        await api(link, `${calendar}/${enc(current)}`, "timeblock bijwerken", { method: "PATCH", body });
         return { eventId: current, error: null };
       } catch (error) {
         // Event in Google weggehaald: opnieuw aanmaken.
         if (!(error instanceof GoogleError) || ![404, 410].includes(error.status)) throw error;
       }
     }
-    const created = await api<{ id: string }>(link, calendar, { method: "POST", body });
+    const created = await api<{ id: string }>(link, calendar, "timeblock aanmaken", { method: "POST", body });
     return { eventId: created.id, error: null };
   } catch (error: any) {
     console.error("taken google sync", error);
