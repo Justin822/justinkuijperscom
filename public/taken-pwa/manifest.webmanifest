@@ -3,8 +3,8 @@
   "short_name": "Taken",
   "description": "Alles op één plek, elke dag een top 3.",
   "lang": "nl",
-  "start_url": "/taken",
-  "scope": "/taken",
+  "start_url": "/app",
+  "scope": "/app",
   "display": "standalone",
   "background_color": "#f6f5f1",
   "theme_color": "#f6f5f1",
@@ -14,7 +14,7 @@
     { "src": "/taken-pwa/icon-maskable.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
   ],
   "shortcuts": [
-    { "name": "Inbox", "url": "/taken/inbox" },
-    { "name": "Dag afsluiten", "url": "/taken/afsluiten" }
+    { "name": "Inbox", "url": "/app/inbox" },
+    { "name": "Dag afsluiten", "url": "/app/afsluiten" }
   ]
 }

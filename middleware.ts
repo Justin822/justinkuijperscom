@@ -5,17 +5,13 @@ import * as taken from "@/lib/taken/access";
 // Ranking the Stars:
 // 1. Subdomein (rankingthestars.… of rts.…) wordt doorgestuurd naar /rankingthestars.
 // 2. Alles van het spel (pagina's, API, foto's) zit achter de teamcode (RTS_TEAM_CODE).
-// Taken-app:
-// 1. Subdomein app.… wordt doorgestuurd naar /taken.
-// 2. /taken en /api/taken zitten achter het wachtwoord (TAKEN_PASSWORD).
+// Taken-app: /app en /api/taken zitten achter het wachtwoord (TAKEN_PASSWORD).
 
 const PROTECTED = /^\/(rankingthestars|api\/rankingthestars|rts-photos)(\/|$)/;
 const OPEN = ["/api/rankingthestars/login", "/rankingthestars/toegang"];
 
-const TAKEN_PROTECTED = /^\/(taken|api\/taken)(\/|$)/;
-const TAKEN_OPEN = ["/api/taken/login", "/taken/toegang"];
-// Op het subdomein blijven deze paden zoals ze zijn (API, PWA-bestanden, Next.js zelf).
-const TAKEN_PASSTHROUGH = /^\/(taken|api|taken-pwa|taken-sw\.js|_next|favicon\.ico)(\/|$)/;
+const TAKEN_PROTECTED = /^\/(app|api\/taken)(\/|$)/;
+const TAKEN_OPEN = ["/api/taken/login", "/app/toegang"];
 
 export async function middleware(request: NextRequest) {
   const url = request.nextUrl.clone();
@@ -29,10 +25,6 @@ export async function middleware(request: NextRequest) {
     url.pathname = "/rankingthestars" + (url.pathname === "/" ? "" : url.pathname);
     rewritten = true;
   }
-  if (/^app\./i.test(host) && !TAKEN_PASSTHROUGH.test(url.pathname)) {
-    url.pathname = "/taken" + (url.pathname === "/" ? "" : url.pathname);
-    rewritten = true;
-  }
 
   const pass = () => (rewritten ? NextResponse.rewrite(url) : NextResponse.next());
 
@@ -44,7 +36,7 @@ export async function middleware(request: NextRequest) {
     if (url.pathname.startsWith("/api/")) {
       return NextResponse.json({ error: "Log eerst in." }, { status: 401 });
     }
-    url.pathname = "/taken/toegang";
+    url.pathname = "/app/toegang";
     return NextResponse.rewrite(url);
   }
 

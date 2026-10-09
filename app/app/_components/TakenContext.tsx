@@ -38,7 +38,7 @@ export async function api<T = any>(path: string, init?: RequestInit): Promise<T>
     cache: "no-store",
   });
   if (res.status === 401) {
-    window.location.href = "/taken/toegang";
+    window.location.href = "/app/toegang";
     throw new Error("Log eerst in.");
   }
   const data = await res.json().catch(() => ({}));

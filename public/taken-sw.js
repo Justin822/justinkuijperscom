@@ -47,7 +47,7 @@ self.addEventListener("fetch", (event) => {
           }
           return res;
         })
-        .catch(() => caches.match(request).then((hit) => hit || caches.match("/taken")))
+        .catch(() => caches.match(request).then((hit) => hit || caches.match("/app")))
     );
   }
 });

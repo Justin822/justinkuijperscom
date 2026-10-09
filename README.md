@@ -55,7 +55,7 @@ Setup op Vercel:
 
 ## Taken (persoonlijke todo-app)
 
-Eén plek voor al je taken, met elke ochtend een top 3. Staat op `/taken`, en ook op `app.justinkuijpers.com` als je dat subdomein koppelt (zie `middleware.ts`). Kost €0 per jaar: geen AI, geen betaalde diensten.
+Eén plek voor al je taken, met elke ochtend een top 3. Staat op `/app` (justinkuijpers.com/app). Kost €0 per jaar: geen AI, geen betaalde diensten.
 
 - **Snelle invoer**: typ een gewone zin, bijv. `Offerte Jansen vrijdag, Appèl, half uur`. De parser (`lib/taken/parse.ts`) herkent:
   - **dagen**: vandaag, morgen, vrijdag, volgende week (dinsdag), deze week, eind van de maand, 16 okt, 16-10, over 3 dagen
@@ -75,6 +75,5 @@ Setup op Vercel:
 
 1. Zet `TAKEN_PASSWORD` (lang wachtwoord) in de env-variabelen en redeploy. Lokaal is het wachtwoord `taken`.
 2. Opslag gebruikt dezelfde Upstash Redis als Ranking the Stars (`KV_REST_API_URL`/`_TOKEN`, gratis tier). Zonder Redis gaat alles in een tijdelijk bestand dat op Vercel niet bewaard blijft.
-3. Optioneel subdomein: Vercel → Project → Settings → Domains → `app.justinkuijpers.com` toevoegen, plus het CNAME-record dat Vercel aangeeft.
 
-Gebieden pas je aan in `lib/taken/config.ts`.
+Gebieden en hun trefwoorden pas je aan in `lib/taken/config.ts`.

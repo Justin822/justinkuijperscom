@@ -57,10 +57,10 @@ export default function TodayPage() {
         <div className="tk-muted text-sm first-letter:uppercase">{formatLong(today)}</div>
         <h1 className="tk-h1">{greeting(hour)}, Justin</h1>
         <div className="mt-3 flex flex-wrap gap-2">
-          <Link href="/taken/inbox" className={`tk-chip ${inboxCount ? "tk-chip-accent" : ""}`}>
+          <Link href="/app/inbox" className={`tk-chip ${inboxCount ? "tk-chip-accent" : ""}`}>
             Inbox {inboxCount}
           </Link>
-          <Link href="/taken/wachten" className={`tk-chip ${waitingDue.length ? "tk-chip-warn" : ""}`}>
+          <Link href="/app/wachten" className={`tk-chip ${waitingDue.length ? "tk-chip-warn" : ""}`}>
             Nabellen {waitingDue.length}
           </Link>
           <span className="tk-chip">Open {openCount}</span>
@@ -193,7 +193,7 @@ export default function TodayPage() {
       )}
 
       <Link
-        href="/taken/afsluiten"
+        href="/app/afsluiten"
         className={`tk-btn ${hour >= 16 && !plan?.closedAt ? "" : "tk-btn-ghost"}`}
         style={{ alignSelf: "center" }}
       >

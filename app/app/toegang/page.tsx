@@ -21,7 +21,7 @@ export default function AccessPage() {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || "Inloggen mislukt.");
-      if (window.location.pathname.endsWith("/toegang")) window.location.href = "/taken";
+      if (window.location.pathname.endsWith("/toegang")) window.location.href = "/app";
       else window.location.reload();
     } catch (err: any) {
       setError(err.message);

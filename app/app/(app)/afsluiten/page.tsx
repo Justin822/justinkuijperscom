@@ -208,7 +208,7 @@ export default function ClosePage() {
             <br />
             Morgen staat je nieuwe top 3 klaar.
           </p>
-          <Link href="/taken" className="tk-btn mt-5">
+          <Link href="/app" className="tk-btn mt-5">
             Naar Vandaag
           </Link>
         </div>

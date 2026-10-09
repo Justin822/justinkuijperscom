@@ -9,12 +9,12 @@ import { useTaken } from "./TakenContext";
 import TaskSheet from "./TaskSheet";
 
 const NAV = [
-  { href: "/taken", label: "Vandaag", Icon: SunIcon },
-  { href: "/taken/inbox", label: "Inbox", Icon: InboxIcon },
-  { href: "/taken/gebieden", label: "Gebieden", Icon: GridIcon },
-  { href: "/taken/wachten", label: "Wachten op", Icon: HourglassIcon },
-  { href: "/taken/ooit", label: "Ooit", Icon: CloudIcon },
-  { href: "/taken/afsluiten", label: "Afsluiten", Icon: MoonIcon, desktopOnly: true },
+  { href: "/app", label: "Vandaag", Icon: SunIcon },
+  { href: "/app/inbox", label: "Inbox", Icon: InboxIcon },
+  { href: "/app/gebieden", label: "Gebieden", Icon: GridIcon },
+  { href: "/app/wachten", label: "Wachten op", Icon: HourglassIcon },
+  { href: "/app/ooit", label: "Ooit", Icon: CloudIcon },
+  { href: "/app/afsluiten", label: "Afsluiten", Icon: MoonIcon, desktopOnly: true },
 ];
 
 export default function Shell({ children }: { children: React.ReactNode }) {
@@ -41,19 +41,19 @@ export default function Shell({ children }: { children: React.ReactNode }) {
   // Service worker voor de app op je beginscherm.
   useEffect(() => {
     if ("serviceWorker" in navigator && process.env.NODE_ENV === "production") {
-      navigator.serviceWorker.register("/taken-sw.js", { scope: "/taken" }).catch(() => {});
+      navigator.serviceWorker.register("/taken-sw.js", { scope: "/app" }).catch(() => {});
     }
   }, []);
 
   const current = (href: string) =>
-    (href === "/taken" ? pathname === "/taken" : pathname?.startsWith(href)) ? "page" : undefined;
+    (href === "/app" ? pathname === "/app" : pathname?.startsWith(href)) ? "page" : undefined;
 
   const links = (where: "side" | "bottom") =>
     NAV.filter((n) => where === "side" || !n.desktopOnly).map(({ href, label, Icon }) => (
       <Link key={href} href={href} aria-current={current(href)}>
         <Icon />
         <span>{where === "bottom" && label === "Wachten op" ? "Wachten" : label}</span>
-        {href === "/taken/inbox" && inboxCount > 0 && <span className="tk-badge">{inboxCount}</span>}
+        {href === "/app/inbox" && inboxCount > 0 && <span className="tk-badge">{inboxCount}</span>}
       </Link>
     ));
 
