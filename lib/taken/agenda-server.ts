@@ -43,8 +43,8 @@ export async function testIcs(name: string, url: string) {
   return expandEvents(raws, now, now + 30 * 86400000, name).length;
 }
 
-/** Afspraken tussen twee lokale datums (inclusief), plus foutmeldingen per agenda. */
-export async function getEvents(fromDate: string, toDate: string) {
+/** Afspraken tussen twee lokale datums (inclusief), plus foutmeldingen per agenda. `fresh`: Google niet uit de cache. */
+export async function getEvents(fromDate: string, toDate: string, fresh = false) {
   const settings = await getSettings();
   // Ruim venster in UTC; de browser filtert per lokale dag.
   const from = zonedToUtc(fromDate, "00:00", DEFAULT_TZ) - 14 * 3600000;
@@ -61,7 +61,7 @@ export async function getEvents(fromDate: string, toDate: string) {
         }
       })
     ),
-    settings.google ? googleEvents(from, to) : Promise.resolve({ events: [], errors: [] }),
+    settings.google ? googleEvents(from, to, fresh) : Promise.resolve({ events: [], errors: [] }),
   ]);
   errors.push(...google.errors);
   return {

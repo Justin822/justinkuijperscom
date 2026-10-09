@@ -39,6 +39,10 @@ type Ctx = {
   openTask: (id: string | null) => void;
   toast: Toast | null;
   notify: (text: string, undo?: () => void) => void;
+  /** Laatste actie met "Ongedaan maken" terugdraaien (⌘Z). */
+  undoLast: () => void;
+  /** Taak wijzigen met een melding die je ongedaan kunt maken. */
+  changeTask: (id: string, patch: Partial<Task>, message: string) => void;
   addRef: React.MutableRefObject<HTMLInputElement | null>;
   plan: DayPlan | null;
   planAction: (action: "swap" | "promote" | "recompute", id?: string) => Promise<void>;
@@ -116,10 +120,28 @@ export function TakenProvider({ children }: { children: React.ReactNode }) {
   const notesRef = useRef<Note[]>([]);
   notesRef.current = notes;
 
+  // Acties die je kunt terugdraaien: via de knop in de melding of met ⌘Z.
+  const undoStack = useRef<(() => void)[]>([]);
   const notify = useCallback((text: string, undo?: () => void) => {
     const id = Date.now();
-    setToast({ id, text, undo });
+    let wrapped: (() => void) | undefined;
+    if (undo) {
+      let used = false;
+      wrapped = () => {
+        if (used) return;
+        used = true;
+        undoStack.current = undoStack.current.filter((u) => u !== wrapped);
+        setToast((t) => (t?.id === id ? null : t));
+        undo();
+      };
+      undoStack.current = [...undoStack.current.slice(-19), wrapped];
+    }
+    setToast({ id, text, undo: wrapped });
     setTimeout(() => setToast((t) => (t?.id === id ? null : t)), undo ? 5000 : 2800);
+  }, []);
+  const undoLast = useCallback(() => {
+    const last = undoStack.current[undoStack.current.length - 1];
+    if (last) last();
   }, []);
 
   const reload = useCallback(async () => {
@@ -181,14 +203,15 @@ export function TakenProvider({ children }: { children: React.ReactNode }) {
 
   const addTasks = useCallback(
     async (inputs: Partial<Task>[]) => {
-      const data = await api<{ tasks: Task[] }>("/api/taken/tasks", {
+      const data = await api<{ tasks: Task[]; sync?: string }>("/api/taken/tasks", {
         method: "POST",
         body: JSON.stringify({ tasks: inputs }),
       });
       mergeTasks(data.tasks);
+      if (data.sync === "fout") notify("Opgeslagen, maar niet in Google Agenda gezet");
       return data.tasks;
     },
-    [mergeTasks]
+    [mergeTasks, notify]
   );
 
   const updateTask = useCallback(
@@ -211,6 +234,17 @@ export function TakenProvider({ children }: { children: React.ReactNode }) {
       }
     },
     [mergeTasks, notify]
+  );
+
+  const changeTask = useCallback(
+    (id: string, patch: Partial<Task>, message: string) => {
+      const before = tasksRef.current.find((t) => t.id === id);
+      if (!before) return;
+      const previous = Object.fromEntries(Object.keys(patch).map((k) => [k, (before as any)[k]])) as Partial<Task>;
+      updateTask(id, patch);
+      notify(message, () => updateTask(id, previous));
+    },
+    [updateTask, notify]
   );
 
   const removeTask = useCallback(
@@ -355,6 +389,8 @@ export function TakenProvider({ children }: { children: React.ReactNode }) {
       openTask: setEditing,
       toast,
       notify,
+      undoLast,
+      changeTask,
       addRef,
       plan,
       planAction,
@@ -389,6 +425,8 @@ export function TakenProvider({ children }: { children: React.ReactNode }) {
       editing,
       toast,
       notify,
+      undoLast,
+      changeTask,
       plan,
       planAction,
       reloadPlan,
@@ -415,27 +453,65 @@ export function useTaken() {
 }
 
 // ----- Agenda -----
-const agendaCache = new Map<string, { at: number; data: AgendaData }>();
-export type AgendaData = { events: CalendarEvent[]; configured: boolean; errors: string[] };
+type AgendaEntry = { at: number; from: string; to: string; data: AgendaData };
+const agendaCache = new Map<string, AgendaEntry>();
+const agendaListeners = new Set<() => void>();
+let lastAgendaEdit = 0;
+export type AgendaData = { events: CalendarEvent[]; configured: boolean; errors: string[]; updatedTasks?: Task[] };
+
+/**
+ * Afspraken in alle geladen weergaven aanpassen, direct zichtbaar (vóór Google antwoordt).
+ * `range` is de periode van die weergave, zodat een nieuwe afspraak alleen landt waar hij hoort.
+ */
+export function editAgenda(change: (events: CalendarEvent[], range: { from: string; to: string }) => CalendarEvent[]) {
+  lastAgendaEdit = Date.now();
+  agendaCache.forEach((entry, key) =>
+    agendaCache.set(key, { ...entry, data: { ...entry.data, events: change(entry.data.events, entry) } })
+  );
+  agendaListeners.forEach((listener) => listener());
+}
 
 /** Afspraken tussen twee datums; houdt 2 minuten een cache vast zodat wisselen tussen schermen snel is. */
 export function useAgenda(from: string, to: string) {
-  const { settings } = useTaken();
+  const { settings, mergeTasks } = useTaken();
   // Andere instellingen (agenda gekoppeld of aangevinkt) = opnieuw ophalen.
-  const version = JSON.stringify([settings?.icsSources.map((s) => s.id), settings?.google.calendars.filter((c) => c.selected).map((c) => c.id), settings?.google.connected]);
+  const version = JSON.stringify([
+    settings?.icsSources.map((s) => s.id),
+    settings?.google.calendars.filter((c) => c.selected).map((c) => c.id),
+    settings?.google.connected,
+    settings?.google.canEdit,
+  ]);
   const key = `${from}|${to}|${version}`;
   const [data, setData] = useState<AgendaData | null>(() => agendaCache.get(key)?.data || null);
   const [loading, setLoading] = useState(false);
+
+  // Wijzigingen vanuit de agenda zelf (slepen, aanmaken) meteen tonen.
+  useEffect(() => {
+    const listener = () => {
+      const hit = agendaCache.get(key);
+      if (hit) setData(hit.data);
+    };
+    agendaListeners.add(listener);
+    return () => {
+      agendaListeners.delete(listener);
+    };
+  }, [key]);
 
   useEffect(() => {
     const hit = agendaCache.get(key);
     if (hit) setData(hit.data);
     if (hit && Date.now() - hit.at < 2 * 60 * 1000) return;
     let cancelled = false;
+    const started = Date.now();
+    // Net iets gewijzigd: Google niet uit de cache van de server halen.
+    const fresh = started - lastAgendaEdit < 4 * 60 * 1000 ? "&fresh=1" : "";
     setLoading(true);
-    api<AgendaData>(`/api/taken/agenda?from=${from}&to=${to}`)
+    api<AgendaData>(`/api/taken/agenda?from=${from}&to=${to}${fresh}`)
       .then((d) => {
-        agendaCache.set(key, { at: Date.now(), data: d });
+        if (d.updatedTasks?.length) mergeTasks(d.updatedTasks);
+        // Tijdens het ophalen iets versleept: die nieuwere stand niet overschrijven.
+        if (lastAgendaEdit > started && agendaCache.has(key)) return;
+        agendaCache.set(key, { at: Date.now(), from, to, data: d });
         if (!cancelled) setData(d);
       })
       .catch(() => !cancelled && setData((d) => d || { events: [], configured: false, errors: ["Agenda niet bereikbaar"] }))
@@ -443,7 +519,7 @@ export function useAgenda(from: string, to: string) {
     return () => {
       cancelled = true;
     };
-  }, [key, from, to]);
+  }, [key, from, to, mergeTasks]);
 
   return { data: data || agendaCache.get(key)?.data || null, loading };
 }

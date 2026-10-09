@@ -36,6 +36,8 @@ export type Task = {
   focusMinutes: number;
   /** Afspraak in de Google-agenda "Planner" voor het timeblock. */
   googleEventId: string | null;
+  /** Wanneer de app het timeblock voor het laatst naar Google schreef; latere wijzigingen komen uit Google. */
+  googleSyncedAt: number | null;
   createdAt: number;
   updatedAt: number;
   doneAt: number | null;
@@ -79,11 +81,38 @@ export type CalendarEvent = {
   endDate: string | null;
   /** Telt mee als bezet (TRANSP:TRANSPARENT telt niet). */
   busy: boolean;
+  /** Kleur van de agenda (Google), anders null. */
+  color: string | null;
+  /** Openen in Google Agenda. */
+  link: string | null;
+  /** Videogesprek: Meet, Teams of Zoom. */
+  meetUrl: string | null;
+  /** Waar de afspraak vandaan komt. */
+  source: "google" | "ics";
+  /** Google: de agenda en het event (bij een herhaling het id van deze ene keer). */
+  calendarId: string | null;
+  eventId: string | null;
+  /** Tijd, titel en duur zijn in de app aan te passen (Google, schrijfrechten, jij organiseert). */
+  editable: boolean;
+  /** Aantal andere gasten: bij wijzigen kies je of zij een mail krijgen. */
+  guests: number;
+  /** Deel van een herhalende reeks: een wijziging geldt alleen voor deze keer. */
+  recurring: boolean;
+  /** Wie je heeft uitgenodigd, als je zelf niet de organisator bent. */
+  organizer: string | null;
 };
 
 export type IcsSource = { id: string; name: string; url: string };
 
-export type GoogleCalendar = { id: string; name: string; color: string | null; selected: boolean };
+export type GoogleCalendar = {
+  id: string;
+  name: string;
+  color: string | null;
+  selected: boolean;
+  /** Je mag er afspraken in zetten (eigenaar of schrijfrechten). */
+  writable?: boolean;
+  primary?: boolean;
+};
 
 export type GoogleLink = {
   refreshToken: string;
@@ -93,6 +122,10 @@ export type GoogleLink = {
   plannerCalendarId: string | null;
   /** Google weigert de koppeling (ingetrokken): opnieuw koppelen nodig. */
   needsReconnect: boolean;
+  /** Rechten die Google heeft gegeven (oudere koppelingen: onbekend). */
+  scopes?: string[];
+  /** Agenda voor nieuwe afspraken uit de app. */
+  defaultCalendarId?: string | null;
 };
 
 export type Settings = {
@@ -112,5 +145,8 @@ export type PublicSettings = {
     calendars: GoogleCalendar[];
     needsReconnect: boolean;
     planner: boolean;
+    /** Afspraken bewerken mag (recht calendar.events); anders eerst opnieuw koppelen. */
+    canEdit: boolean;
+    defaultCalendarId: string | null;
   };
 };

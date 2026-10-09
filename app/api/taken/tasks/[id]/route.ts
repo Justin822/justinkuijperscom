@@ -23,7 +23,7 @@ export async function PATCH(request: Request, { params }: Context) {
     }
     // Timeblock gelijk houden met de agenda "Planner" in Google.
     const sync = await syncBlock(task, next);
-    next = { ...next, googleEventId: sync.eventId };
+    next = { ...next, googleEventId: sync.eventId, googleSyncedAt: sync.syncedAt };
     await saveTasks([next, ...created]);
     return NextResponse.json({ task: next, created, sync: sync.error ? "fout" : "ok" });
   } catch (error) {

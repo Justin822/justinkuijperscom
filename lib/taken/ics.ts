@@ -115,6 +115,7 @@ type Raw = {
   uid: string;
   title: string;
   location: string | null;
+  description: string;
   start: When;
   /** Duur in ms (bij hele dagen in hele dagen × 24 uur). */
   duration: number;
@@ -183,6 +184,7 @@ function toRaw(props: Prop[]): Raw | null {
     uid: get("UID")?.value || `${start.date}-${get("SUMMARY")?.value || ""}`,
     title: unescape(get("SUMMARY")?.value || "(geen titel)"),
     location: get("LOCATION") ? unescape(get("LOCATION")!.value) || null : null,
+    description: unescape(get("DESCRIPTION")?.value || "").slice(0, 2000),
     start,
     duration: Math.max(0, duration),
     rrule: rruleProp
@@ -193,6 +195,12 @@ function toRaw(props: Prop[]): Raw | null {
     cancelled: /CANCELLED/i.test(get("STATUS")?.value || ""),
     busy: !/TRANSPARENT/i.test(get("TRANSP")?.value || ""),
   };
+}
+
+/** Eerste link naar Teams, Zoom of Meet (Outlook zet die in locatie of beschrijving). */
+export function meetingLink(text: string): string | null {
+  const m = text.match(/https:\/\/[^\s"<>]*(?:teams\.microsoft\.com|zoom\.us|meet\.google\.com)[^\s"<>]*/i);
+  return m ? m[0] : null;
 }
 
 const DAY_CODES = ["SU", "MO", "TU", "WE", "TH", "FR", "SA"];
@@ -296,6 +304,16 @@ export function expandEvents(raws: Raw[], from: number, to: number, calendar: st
       startDate: allDay ? date : null,
       endDate: allDay ? addDays(date, days) : null,
       busy: r.busy && !allDay,
+      color: null,
+      link: null,
+      meetUrl: meetingLink(`${r.location || ""} ${r.description}`),
+      source: "ics",
+      calendarId: null,
+      eventId: null,
+      editable: false,
+      guests: 0,
+      recurring: Boolean(r.rrule) || r.recurrenceId !== null,
+      organizer: null,
     });
   };
 

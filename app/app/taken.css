@@ -82,7 +82,10 @@
   padding: calc(16px + env(safe-area-inset-top)) 20px calc(110px + env(safe-area-inset-bottom));
 }
 .tk .tk-main.is-wide {
-  max-width: 1040px;
+  max-width: 1180px;
+}
+.tk .tk-main.is-full {
+  max-width: none;
 }
 
 .tk .tk-bottom {
@@ -403,6 +406,20 @@
 .tk .tk-seg button:disabled {
   opacity: 0.4;
 }
+.tk .tk-seg.tk-seg-xs button {
+  padding: 2px 8px;
+  font-size: 12px;
+}
+.tk .tk-select-bare {
+  min-width: 0;
+  max-width: 100%;
+  background: transparent;
+  border: 0;
+  outline: none;
+  padding: 0;
+  color: var(--text);
+  font: inherit;
+}
 
 /* Tabs met onderstreping */
 .tk .tk-tabs {
@@ -531,6 +548,10 @@
 .tk .tk-meta a {
   text-decoration: underline;
   text-underline-offset: 2px;
+}
+.tk .tk-meta > a::before {
+  display: inline-block;
+  white-space: pre;
 }
 
 .tk .tk-check {
@@ -808,6 +829,13 @@
 @media (min-width: 900px) {
   .tk .tk-toast {
     bottom: 24px;
+  }
+}
+/* Een sheet staat open (telefoon): melding bovenin, zodat hij de sheet niet bedekt. */
+@media (max-width: 899px) {
+  .tk:has(.tk-sheet) .tk-toast {
+    top: calc(12px + env(safe-area-inset-top));
+    bottom: auto;
   }
 }
 
@@ -1221,4 +1249,510 @@
 .tk .tk-banner.is-soft .tk-btn-ghost {
   color: var(--text);
   border-color: var(--line-strong);
+}
+
+/* ---------- Popover & menu ---------- */
+.tk .tk-pop {
+  position: fixed;
+  z-index: 55;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.14), 0 2px 6px rgba(0, 0, 0, 0.06);
+  animation: tk-pop 0.12s ease;
+}
+@keyframes tk-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.98);
+  }
+}
+.tk .tk-pop-body {
+  padding: 14px;
+}
+.tk .tk-pop-sheet {
+  padding: 8px 6px calc(12px + env(safe-area-inset-bottom));
+}
+.tk .tk-menu {
+  display: flex;
+  flex-direction: column;
+  padding: 4px;
+}
+.tk .tk-menu button {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 9px 10px;
+  border-radius: 7px;
+  font-size: 14px;
+  text-align: left;
+}
+.tk .tk-menu button:hover {
+  background: var(--hover);
+}
+.tk .tk-menu .is-danger {
+  color: var(--danger);
+}
+.tk .tk-drag-ghost {
+  position: fixed;
+  z-index: 80;
+  pointer-events: none;
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: var(--text);
+  color: var(--bg);
+  font-size: 13px;
+  font-weight: 550;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+  white-space: nowrap;
+}
+html.tk-dragging,
+html.tk-dragging * {
+  cursor: grabbing !important;
+  user-select: none !important;
+  -webkit-user-select: none !important;
+}
+
+/* ---------- Agenda ---------- */
+.tk .cal {
+  --gutter: 46px;
+  position: relative;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.tk .cal-head,
+.tk .cal-lane-row {
+  display: flex;
+}
+.tk .cal-gutter {
+  width: var(--gutter);
+  flex-shrink: 0;
+  position: relative;
+}
+.tk .cal-gutter-text {
+  font-size: 10.5px;
+  color: var(--faint);
+  text-align: right;
+  padding: 7px 8px 0 0;
+}
+.tk .cal-dayhead {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  padding: 2px 0 8px;
+  border-radius: 10px;
+}
+@media (hover: hover) {
+  .tk .cal-dayhead:hover {
+    background: var(--hover);
+  }
+}
+.tk .cal-wd {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--muted);
+}
+.tk .cal-dn {
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  font-size: 16px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.tk .cal-dayhead.is-today .cal-dn {
+  background: var(--text);
+  color: var(--bg);
+}
+.tk .cal-free {
+  font-size: 10.5px;
+  color: var(--faint);
+  white-space: nowrap;
+}
+.tk .cal-lane-row {
+  border-top: 1px solid var(--line);
+}
+.tk .cal-lane {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 4px 3px;
+  border-left: 1px solid var(--line);
+}
+.tk .cal-chip {
+  display: block;
+  width: 100%;
+  text-align: left;
+  font-size: 12px;
+  line-height: 1.3;
+  padding: 3px 7px;
+  border-radius: 6px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tk .cal-chip.is-event {
+  --c: var(--faint);
+  background: var(--hover);
+  background: color-mix(in srgb, var(--c) 16%, var(--bg));
+  color: var(--text);
+}
+.tk .cal-chip.is-task {
+  border: 1px dashed var(--line-strong);
+  color: var(--muted);
+  cursor: grab;
+}
+.tk .cal-scroll {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  border-top: 1px solid var(--line);
+  /* Geen zichtbare scrollbalk, zodat de dagkoppen precies boven de kolommen staan. */
+  scrollbar-width: none;
+}
+.tk .cal-scroll::-webkit-scrollbar {
+  display: none;
+}
+.tk .cal-body {
+  position: relative;
+  display: flex;
+}
+.tk .cal-hour {
+  position: absolute;
+  right: 8px;
+  transform: translateY(-50%);
+  font-size: 10.5px;
+  color: var(--faint);
+  font-variant-numeric: tabular-nums;
+}
+.tk .cal-cols {
+  position: relative;
+  flex: 1;
+  display: flex;
+}
+.tk .cal-col {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  border-left: 1px solid var(--line);
+  background-image: linear-gradient(to bottom, var(--line) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--hover) 1px, transparent 1px);
+  background-size: 100% var(--h), 100% var(--h);
+  background-position: 0 0, 0 calc(var(--h) / 2);
+  touch-action: pan-y;
+}
+.tk .cal-off {
+  position: absolute;
+  left: 0;
+  right: 0;
+  background: rgba(127, 127, 127, 0.05);
+  pointer-events: none;
+}
+.tk .cal-now {
+  position: absolute;
+  left: -1px;
+  right: 0;
+  border-top: 1.5px solid var(--danger);
+  z-index: 4;
+  pointer-events: none;
+}
+.tk .cal-now::before {
+  content: "";
+  position: absolute;
+  left: -4px;
+  top: -4.5px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--danger);
+}
+.tk .cal-block {
+  position: absolute;
+  z-index: 2;
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 4px 7px;
+  border-radius: 6px;
+  overflow: hidden;
+  font-size: 12px;
+  line-height: 1.25;
+  touch-action: pan-y;
+  -webkit-touch-callout: none;
+  transition: box-shadow 0.12s ease, opacity 0.12s ease;
+}
+.tk .cal-text {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.tk .cal-title {
+  font-weight: 550;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow-wrap: break-word;
+}
+.tk .cal-time {
+  opacity: 0.72;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.tk .cal-block.is-compact {
+  align-items: center;
+  padding-top: 0;
+  padding-bottom: 0;
+}
+.tk .cal-block.is-compact .cal-text {
+  flex-direction: row;
+  align-items: baseline;
+  gap: 6px;
+}
+.tk .cal-block.is-compact .cal-title {
+  -webkit-line-clamp: 1;
+  flex: 0 1 auto;
+  min-width: 2.5em;
+}
+.tk .cal-block.is-compact .cal-time {
+  flex: 1 1 0;
+  min-width: 0;
+}
+.tk .cal-block.is-event {
+  --c: var(--faint);
+  background: var(--hover);
+  background: color-mix(in srgb, var(--c) 15%, var(--bg));
+  border-left: 3px solid var(--c);
+  color: var(--text);
+  cursor: pointer;
+}
+.tk .cal-block.is-event.is-free {
+  background: transparent;
+  border: 1px dashed var(--line-strong);
+  border-left: 3px solid var(--c);
+}
+.tk .cal-block.is-event.is-editable {
+  cursor: grab;
+}
+.tk .cal-block.is-event.is-saving {
+  opacity: 0.6;
+}
+.tk .cal-block.is-task {
+  background: var(--text);
+  color: var(--bg);
+  cursor: grab;
+  box-shadow: 0 0 0 1px var(--bg);
+}
+.tk .cal-block.is-task.is-done {
+  background: var(--hover);
+  color: var(--faint);
+  box-shadow: 0 0 0 1px var(--bg);
+}
+.tk .cal-block.is-task.is-done .cal-title {
+  text-decoration: line-through;
+}
+.tk .cal-block.is-selected {
+  box-shadow: 0 0 0 2px var(--bg), 0 0 0 3.5px var(--text);
+  z-index: 3;
+}
+.tk .cal-block.is-dragging {
+  z-index: 6;
+  opacity: 0.94;
+  cursor: grabbing;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.28);
+}
+.tk .cal-drag-label {
+  display: none;
+}
+.tk .cal-check {
+  width: 14px;
+  height: 14px;
+  margin-top: 1px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  border: 1.5px solid currentColor;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: inherit;
+  opacity: 0.8;
+}
+.tk .cal-block.is-compact .cal-check {
+  margin-top: 0;
+}
+.tk .cal-check svg {
+  width: 9px;
+  height: 9px;
+  opacity: 0;
+}
+.tk .cal-check:hover svg {
+  opacity: 0.7;
+}
+.tk .cal-block.is-done .cal-check {
+  background: var(--faint);
+  border-color: var(--faint);
+  opacity: 1;
+}
+.tk .cal-block.is-done .cal-check svg {
+  opacity: 1;
+  color: var(--bg);
+}
+.tk .cal-handle {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 7px;
+  cursor: ns-resize;
+  touch-action: none;
+  z-index: 3;
+}
+.tk .cal-handle.is-top {
+  top: 0;
+}
+.tk .cal-handle.is-bottom {
+  bottom: 0;
+}
+.tk .cal-block.is-ghost {
+  background: transparent;
+  border: 1.5px dashed var(--text);
+  color: var(--text);
+  z-index: 5;
+  pointer-events: none;
+}
+.tk .cal.is-placing .cal-col {
+  cursor: copy;
+}
+.tk .cal.is-placing .cal-col:hover {
+  background-color: rgba(127, 127, 127, 0.06);
+}
+/* Touch: grepen alleen bij een geselecteerd blok, en dan groot genoeg voor een vinger. */
+@media (pointer: coarse) {
+  .tk .cal-handle {
+    display: none;
+  }
+  .tk .cal-block.is-selected {
+    touch-action: none;
+    overflow: visible;
+  }
+  .tk .cal-block.is-selected .cal-handle {
+    display: block;
+    height: 22px;
+  }
+  .tk .cal-block.is-selected .cal-handle.is-top {
+    top: -11px;
+  }
+  .tk .cal-block.is-selected .cal-handle.is-bottom {
+    bottom: -11px;
+  }
+  .tk .cal-block.is-selected .cal-handle::after {
+    content: "";
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 28px;
+    height: 6px;
+    margin: -3px 0 0 -14px;
+    border-radius: 3px;
+    background: var(--bg);
+    border: 1.5px solid var(--text);
+  }
+}
+
+/* ---------- Dagplanner (Vandaag) ---------- */
+.tk .tk-planner {
+  display: block;
+}
+@media (min-width: 900px) {
+  .tk .tk-planner {
+    display: grid;
+    grid-template-columns: minmax(300px, 360px) minmax(0, 1fr);
+    gap: 32px;
+    align-items: start;
+  }
+  .tk .tk-planner-side {
+    position: sticky;
+    top: 24px;
+    max-height: calc(100vh - 48px);
+    overflow-y: auto;
+    padding-right: 4px;
+    scrollbar-width: thin;
+  }
+}
+.tk .tk-plan-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 9px 0;
+  border-bottom: 1px solid var(--line);
+}
+.tk .tk-plan-row:last-child {
+  border-bottom: 0;
+}
+.tk .tk-plan-row .tk-row-actions {
+  display: flex;
+  align-items: center;
+  opacity: 0;
+  transition: opacity 0.12s ease;
+}
+.tk .tk-plan-row:hover .tk-row-actions,
+.tk .tk-plan-row:focus-within .tk-row-actions {
+  opacity: 1;
+}
+@media (pointer: coarse) {
+  .tk .tk-plan-row .tk-row-actions {
+    opacity: 1;
+  }
+}
+.tk .tk-plan-row.is-draggable {
+  cursor: grab;
+}
+.tk .tk-top-num-sm {
+  width: 14px;
+  flex-shrink: 0;
+  padding-top: 1px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--faint);
+  font-variant-numeric: tabular-nums;
+}
+.tk .tk-reason {
+  display: none;
+  font-size: 12.5px;
+  color: var(--muted);
+}
+.tk .tk-plan-row:hover .tk-reason {
+  display: block;
+}
+
+/* ---------- Week ---------- */
+.tk .tk-week-layout {
+  display: block;
+}
+@media (min-width: 900px) {
+  .tk .tk-week-layout {
+    display: grid;
+    grid-template-columns: 250px minmax(0, 1fr);
+    gap: 20px;
+    align-items: start;
+  }
+  .tk .tk-week-layout[data-tray="closed"] {
+    grid-template-columns: 110px minmax(0, 1fr);
+  }
+  .tk .tk-week-tray {
+    position: sticky;
+    top: 24px;
+    max-height: calc(100vh - 140px);
+    overflow-y: auto;
+    scrollbar-width: thin;
+  }
 }

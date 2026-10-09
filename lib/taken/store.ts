@@ -45,6 +45,19 @@ async function writeFile(data: FileData) {
   await fs.writeFile(dataFile, JSON.stringify(data, null, 2), "utf8");
 }
 
+// Wijzigingen in het bestand één voor één, zodat twee gelijktijdige verzoeken elkaars werk niet overschrijven.
+let fileQueue: Promise<unknown> = Promise.resolve();
+function editFile<T>(change: (data: FileData) => T): Promise<T> {
+  const run = fileQueue.then(async () => {
+    const data = await readFile();
+    const result = change(data);
+    await writeFile(data);
+    return result;
+  });
+  fileQueue = run.catch(() => {});
+  return run;
+}
+
 const parse = <T>(raw: string | null): T | null => {
   if (!raw) return null;
   try {
@@ -80,9 +93,9 @@ export async function getTask(id: string): Promise<Task | null> {
 export async function saveTasks(tasks: Task[]) {
   if (!tasks.length) return;
   if (storageKind === "file") {
-    const data = await readFile();
-    for (const task of tasks) data.tasks[task.id] = task;
-    await writeFile(data);
+    await editFile((data) => {
+      for (const task of tasks) data.tasks[task.id] = task;
+    });
     return;
   }
   await redis(["HSET", TASKS_KEY, ...tasks.flatMap((t) => [t.id, JSON.stringify(t)])]);
@@ -90,9 +103,9 @@ export async function saveTasks(tasks: Task[]) {
 
 export async function deleteTask(id: string) {
   if (storageKind === "file") {
-    const data = await readFile();
-    delete data.tasks[id];
-    await writeFile(data);
+    await editFile((data) => {
+      delete data.tasks[id];
+    });
     return;
   }
   await redis(["HDEL", TASKS_KEY, id]);
@@ -114,9 +127,9 @@ export async function getDay(date: string): Promise<DayPlan | null> {
 
 export async function saveDay(plan: DayPlan) {
   if (storageKind === "file") {
-    const data = await readFile();
-    data.days[plan.date] = plan;
-    await writeFile(data);
+    await editFile((data) => {
+      data.days[plan.date] = plan;
+    });
     return;
   }
   // Een dagplan is alleen een paar dagen nodig (voor de balans tussen gebieden).
@@ -135,9 +148,9 @@ export async function getNote(id: string): Promise<Note | null> {
 
 export async function saveNote(note: Note) {
   if (storageKind === "file") {
-    const data = await readFile();
-    data.notes[note.id] = note;
-    await writeFile(data);
+    await editFile((data) => {
+      data.notes[note.id] = note;
+    });
     return;
   }
   await redis(["HSET", NOTES_KEY, note.id, JSON.stringify(note)]);
@@ -145,9 +158,9 @@ export async function saveNote(note: Note) {
 
 export async function deleteNote(id: string) {
   if (storageKind === "file") {
-    const data = await readFile();
-    delete data.notes[id];
-    await writeFile(data);
+    await editFile((data) => {
+      delete data.notes[id];
+    });
     return;
   }
   await redis(["HDEL", NOTES_KEY, id]);
@@ -163,8 +176,9 @@ export async function getSettings(): Promise<Settings> {
 
 export async function saveSettings(settings: Settings) {
   if (storageKind === "file") {
-    const data = await readFile();
-    await writeFile({ ...data, settings });
+    await editFile((data) => {
+      data.settings = settings;
+    });
     return;
   }
   await redis(["SET", SETTINGS_KEY, JSON.stringify(settings)]);
@@ -172,6 +186,13 @@ export async function saveSettings(settings: Settings) {
 
 /** Instellingen bijwerken op basis van de laatste stand (voorkomt dat twee wijzigingen elkaar overschrijven). */
 export async function updateSettings(change: (s: Settings) => Settings): Promise<Settings> {
+  if (storageKind === "file") {
+    return editFile((data) => {
+      const next = change({ ...DEFAULT_SETTINGS, ...(data.settings || {}) });
+      data.settings = next;
+      return next;
+    });
+  }
   const next = change(await getSettings());
   await saveSettings(next);
   return next;

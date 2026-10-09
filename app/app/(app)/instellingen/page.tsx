@@ -119,7 +119,7 @@ export default function SettingsPage() {
 
       <Section
         title="Google Agenda"
-        intro="Je afspraken uit Google in je Planner, en ingeplande taken als afspraak in een eigen agenda 'Planner' in Google, dus ook op je telefoon."
+        intro="Je afspraken uit Google in je Planner, te verslepen en op te rekken. Ingeplande taken komen in een eigen agenda 'Planner' in Google, dus ook op je telefoon; verplaats je ze daar, dan volgt de app."
       >
         {!g.configured ? (
           <div className="tk-card p-4 text-sm leading-6">
@@ -160,6 +160,16 @@ export default function SettingsPage() {
                 </a>
               )}
             </div>
+            {!g.needsReconnect && !g.canEdit && (
+              <div className="tk-banner is-soft mt-3">
+                <span className="min-w-0 flex-1">
+                  Koppel opnieuw om afspraken te kunnen bewerken: verslepen, oprekken en nieuwe afspraken maken vanuit de app.
+                </span>
+                <a href="/api/taken/google/connect" className="tk-btn tk-btn-sm">
+                  Opnieuw koppelen
+                </a>
+              </div>
+            )}
 
             <div className="tk-h2 mt-5">Tonen in de app</div>
             <div className="tk-list mt-1">
@@ -182,6 +192,29 @@ export default function SettingsPage() {
                 </label>
               ))}
             </div>
+            {g.canEdit && g.calendars.some((c) => c.writable !== false) && (
+              <label className="mt-4 flex flex-wrap items-center gap-2 text-sm">
+                <span className="tk-muted">Nieuwe afspraken in</span>
+                <select
+                  className="tk-select"
+                  style={{ width: "auto", padding: "6px 10px" }}
+                  value={g.defaultCalendarId || ""}
+                  onChange={(e) => {
+                    setSettings({ ...settings, google: { ...g, defaultCalendarId: e.target.value } });
+                    act("googleDefault", { calendarId: e.target.value }, "default");
+                  }}
+                >
+                  {!g.defaultCalendarId && <option value="">Kies een agenda</option>}
+                  {g.calendars
+                    .filter((c) => c.writable !== false)
+                    .map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.name}
+                      </option>
+                    ))}
+                </select>
+              </label>
+            )}
             <p className="tk-faint mt-2 text-xs">
               {g.planner
                 ? "Ingeplande taken komen in de agenda 'Planner'. Die staat hier niet, want die zie je al als timeblocks."

@@ -1,10 +1,11 @@
-import { DEFAULT_TZ } from "./ics";
+import { DEFAULT_TZ, meetingLink } from "./ics";
 import { getSettings, updateSettings } from "./store";
 import type { CalendarEvent, GoogleCalendar, GoogleLink, Task } from "./types";
 
 // Google Agenda koppelen via OAuth, zonder extra pakketten.
 // Lezen: alle gekozen agenda's (calendar.readonly).
-// Schrijven: alleen de eigen agenda "Planner" die de app zelf aanmaakt (calendar.app.created).
+// Timeblocks: de eigen agenda "Planner" die de app zelf aanmaakt (calendar.app.created).
+// Afspraken verplaatsen, oprekken, aanmaken en verwijderen: calendar.events.
 
 const AUTH_BASE = process.env.GOOGLE_OAUTH_BASE || "https://accounts.google.com";
 const TOKEN_BASE = process.env.GOOGLE_TOKEN_BASE || "https://oauth2.googleapis.com";
@@ -14,7 +15,11 @@ const SCOPES = [
   "email",
   "https://www.googleapis.com/auth/calendar.readonly",
   "https://www.googleapis.com/auth/calendar.app.created",
+  "https://www.googleapis.com/auth/calendar.events",
 ];
+const EVENTS_SCOPE = "https://www.googleapis.com/auth/calendar.events";
+/** Mag de app afspraken bewerken? Oudere koppelingen hebben dat recht nog niet. */
+export const canEdit = (link: GoogleLink | null | undefined) => Boolean(link?.scopes?.includes(EVENTS_SCOPE));
 export const PLANNER_NAME = "Planner";
 
 const clientId = () => process.env.GOOGLE_CLIENT_ID || "";
@@ -91,7 +96,7 @@ async function tokenRequest(body: Record<string, string>, label: string) {
     label
   );
   if (!ok) throw new GoogleError(data.error_description || data.error || `Google ${status}`, status);
-  return data as { access_token: string; expires_in: number; refresh_token?: string; id_token?: string };
+  return data as { access_token: string; expires_in: number; refresh_token?: string; id_token?: string; scope?: string };
 }
 
 function emailFromIdToken(idToken?: string): string | null {
@@ -149,6 +154,8 @@ async function listCalendars(link: GoogleLink): Promise<GoogleCalendar[]> {
     name: c.summaryOverride || c.summary || c.id,
     color: c.backgroundColor || null,
     selected: !c.hidden,
+    writable: c.accessRole === "owner" || c.accessRole === "writer",
+    primary: Boolean(c.primary),
   }));
 }
 
@@ -188,6 +195,8 @@ export async function connect(code: string, redirect: string) {
     calendars: previous?.calendars || [],
     plannerCalendarId: previous?.plannerCalendarId || null,
     needsReconnect: false,
+    scopes: (t.scope || "").split(" ").filter(Boolean),
+    defaultCalendarId: previous?.defaultCalendarId || null,
   };
   const started = Date.now();
   await updateSettings((s) => ({ ...s, google: link }));
@@ -211,12 +220,15 @@ const eventCache = new Map<string, { at: number; events: CalendarEvent[] }>();
 const TTL = 3 * 60 * 1000;
 export const clearGoogleCache = () => eventCache.clear();
 
-function toEvent(calendar: GoogleCalendar, e: any): CalendarEvent | null {
+/** Event uit Google → afspraak in de app. `edit`: de koppeling mag afspraken bewerken. */
+function toEvent(calendar: GoogleCalendar, e: any, edit: boolean): CalendarEvent | null {
   if (e.status === "cancelled" || !e.start) return null;
   const allDay = Boolean(e.start.date);
   const start = allDay ? Date.parse(`${e.start.date}T00:00:00Z`) : Date.parse(e.start.dateTime);
   const end = allDay ? Date.parse(`${e.end?.date || e.start.date}T00:00:00Z`) : Date.parse(e.end?.dateTime || e.start.dateTime);
   if (isNaN(start) || isNaN(end)) return null;
+  // organizer.self: de organisator is de agenda waar deze afspraak in staat (jij, of een gedeelde agenda).
+  const mine = !e.organizer || Boolean(e.organizer.self);
   return {
     id: `g:${calendar.id}:${e.id}`,
     calendar: calendar.name,
@@ -228,11 +240,31 @@ function toEvent(calendar: GoogleCalendar, e: any): CalendarEvent | null {
     startDate: allDay ? e.start.date : null,
     endDate: allDay ? e.end?.date || null : null,
     busy: !allDay && e.transparency !== "transparent",
+    color: calendar.color,
+    link: e.htmlLink || null,
+    meetUrl:
+      e.hangoutLink ||
+      e.conferenceData?.entryPoints?.find((p: any) => p.entryPointType === "video")?.uri ||
+      meetingLink(`${e.location || ""} ${e.description || ""}`),
+    source: "google",
+    calendarId: calendar.id,
+    eventId: e.id,
+    // Alleen gewone afspraken die jij organiseert, in een agenda waar je in mag schrijven.
+    editable:
+      edit &&
+      calendar.writable !== false &&
+      mine &&
+      !e.locked &&
+      (!e.eventType || ["default", "focusTime", "outOfOffice"].includes(e.eventType)),
+    guests: (e.attendees || []).filter((a: any) => !a.self && !a.resource).length,
+    recurring: Boolean(e.recurringEventId),
+    organizer: mine ? null : e.organizer?.displayName || e.organizer?.email || null,
   };
 }
 
-/** Afspraken uit de gekozen Google-agenda's tussen twee tijdstippen. */
-export async function googleEvents(from: number, to: number): Promise<{ events: CalendarEvent[]; errors: string[] }> {
+
+/** Afspraken uit de gekozen Google-agenda's tussen twee tijdstippen. `fresh`: niet uit de cache (net iets gewijzigd). */
+export async function googleEvents(from: number, to: number, fresh = false): Promise<{ events: CalendarEvent[]; errors: string[] }> {
   const link = (await getSettings()).google;
   if (!link || link.needsReconnect || !googleConfigured()) {
     return { events: [], errors: link?.needsReconnect ? ["Google Agenda: opnieuw koppelen"] : [] };
@@ -251,7 +283,7 @@ export async function googleEvents(from: number, to: number): Promise<{ events: 
       .map(async (calendar) => {
         const key = `${calendar.id}|${from}|${to}`;
         const hit = eventCache.get(key);
-        if (hit && Date.now() - hit.at < TTL) return hit.events;
+        if (!fresh && hit && Date.now() - hit.at < TTL) return hit.events;
         try {
           const events: CalendarEvent[] = [];
           let pageToken = "";
@@ -270,7 +302,7 @@ export async function googleEvents(from: number, to: number): Promise<{ events: 
               "afspraken"
             );
             for (const item of data.items || []) {
-              const event = toEvent(calendar, item);
+              const event = toEvent(calendar, item, canEdit(link));
               if (event) events.push(event);
             }
             if (!data.nextPageToken) break;
@@ -315,6 +347,7 @@ export async function refreshCalendars() {
           google: {
             ...s.google,
             plannerCalendarId,
+            defaultCalendarId: pickDefault(fresh, s.google.defaultCalendarId, plannerCalendarId),
             calendars: fresh
               .filter((c) => c.id !== plannerCalendarId)
               .map((c) => ({ ...c, selected: before.has(c.id) ? (before.get(c.id) as boolean) : c.selected })),
@@ -322,6 +355,154 @@ export async function refreshCalendars() {
         }
       : s
   );
+}
+
+/** Agenda voor nieuwe afspraken: je eigen keuze als die nog kan, anders je hoofdagenda. */
+function pickDefault(calendars: GoogleCalendar[], current: string | null | undefined, planner: string | null) {
+  const usable = calendars.filter((c) => c.writable !== false && c.id !== planner);
+  return (usable.find((c) => c.id === current) || usable.find((c) => c.primary) || usable[0])?.id || null;
+}
+
+export async function setDefaultCalendar(calendarId: string) {
+  return updateSettings((s) =>
+    s.google && s.google.calendars.some((c) => c.id === calendarId && c.writable !== false)
+      ? { ...s, google: { ...s.google, defaultCalendarId: calendarId } }
+      : s
+  );
+}
+
+// ---------- Schrijven: afspraken in je eigen agenda's ----------
+const forget = (calendarId: string) => {
+  for (const key of Array.from(eventCache.keys())) if (key.startsWith(`${calendarId}|`)) eventCache.delete(key);
+};
+const at = (ms: number) => ({ dateTime: new Date(ms).toISOString(), timeZone: DEFAULT_TZ });
+const ignoreGone = (error: unknown) => {
+  if (!(error instanceof GoogleError) || ![404, 410].includes(error.status)) throw error;
+};
+
+/** De agenda waarin de app mag schrijven, met een duidelijke melding als dat (nog) niet kan. */
+async function writable(calendarId: string | null | undefined) {
+  const link = (await getSettings()).google;
+  if (!link || link.needsReconnect || !googleConfigured()) throw new GoogleError("Google Agenda is niet gekoppeld.", 400);
+  if (!canEdit(link)) throw new GoogleError("Koppel Google Agenda opnieuw in Instellingen om afspraken te kunnen bewerken.", 403);
+  const id =
+    calendarId ||
+    link.defaultCalendarId ||
+    (link.calendars.find((c) => c.primary) || link.calendars.find((c) => c.id === link.email))?.id;
+  const calendar = link.calendars.find((c) => c.id === id);
+  if (!calendar || calendar.id === link.plannerCalendarId) throw new GoogleError("Onbekende agenda.", 400);
+  if (calendar.writable === false) throw new GoogleError(`In ${calendar.name} kun je niets wijzigen.`, 403);
+  return { link, calendar };
+}
+
+export type EventChange = { title?: string; start?: number; end?: number };
+
+/** Nieuwe afspraak (standaard in je hoofdagenda). */
+export async function createEvent(calendarId: string | null, input: { title: string; start: number; end: number }) {
+  const { link, calendar } = await writable(calendarId);
+  const data = await api(link, `/calendars/${enc(calendar.id)}/events`, "afspraak aanmaken", {
+    method: "POST",
+    body: JSON.stringify({ summary: input.title, start: at(input.start), end: at(input.end) }),
+  });
+  forget(calendar.id);
+  return toEvent(calendar, data, true);
+}
+
+/**
+ * Tijd of titel van een afspraak aanpassen. Bij een herhaling is `eventId` deze ene keer.
+ * `restore` zet een net verwijderde afspraak terug (ongedaan maken).
+ */
+export async function updateEvent(calendarId: string, eventId: string, change: EventChange & { restore?: boolean }, notifyGuests: boolean) {
+  const { link, calendar } = await writable(calendarId);
+  const body: Record<string, unknown> = {};
+  if (change.title) body.summary = change.title;
+  if (change.start != null && change.end != null) {
+    body.start = at(change.start);
+    body.end = at(change.end);
+  }
+  if (change.restore) body.status = "confirmed";
+  const data = await api(
+    link,
+    `/calendars/${enc(calendar.id)}/events/${enc(eventId)}?sendUpdates=${notifyGuests ? "all" : "none"}`,
+    "afspraak wijzigen",
+    { method: "PATCH", body: JSON.stringify(body) }
+  );
+  forget(calendar.id);
+  return toEvent(calendar, data, true);
+}
+
+export async function deleteEvent(calendarId: string, eventId: string, notifyGuests: boolean) {
+  const { link, calendar } = await writable(calendarId);
+  await api(link, `/calendars/${enc(calendar.id)}/events/${enc(eventId)}?sendUpdates=${notifyGuests ? "all" : "none"}`, "afspraak verwijderen", {
+    method: "DELETE",
+  }).catch(ignoreGone);
+  forget(calendar.id);
+}
+
+// ---------- Planner: wat er in Google met je timeblocks gebeurde ----------
+export type PlannerItem = {
+  id: string;
+  /** Begin en eind (ms); null bij een hele-dag-afspraak. */
+  start: number | null;
+  end: number | null;
+  /** Datum bij een hele-dag-afspraak. */
+  date: string | null;
+  title: string;
+  /** Laatst gewijzigd in Google (ms). */
+  updated: number;
+  cancelled: boolean;
+};
+
+function toPlannerItem(e: any): PlannerItem {
+  const start = e.start?.dateTime ? Date.parse(e.start.dateTime) : null;
+  const end = e.end?.dateTime ? Date.parse(e.end.dateTime) : null;
+  return {
+    id: e.id,
+    start: start !== null && !isNaN(start) ? start : null,
+    end: end !== null && !isNaN(end) ? end : null,
+    date: e.start?.date || null,
+    title: e.summary || "",
+    updated: Date.parse(e.updated || "") || 0,
+    cancelled: e.status === "cancelled",
+  };
+}
+
+/** Timeblocks in de agenda Planner tussen twee tijdstippen (altijd vers). Null zonder Planner. */
+export async function plannerItems(from: number, to: number): Promise<PlannerItem[] | null> {
+  const link = (await getSettings()).google;
+  if (!link?.plannerCalendarId || link.needsReconnect || !googleConfigured()) return null;
+  const items: PlannerItem[] = [];
+  let pageToken = "";
+  for (let page = 0; page < 5; page++) {
+    const params = new URLSearchParams({
+      singleEvents: "true",
+      timeMin: new Date(from).toISOString(),
+      timeMax: new Date(to).toISOString(),
+      maxResults: "2500",
+    });
+    if (pageToken) params.set("pageToken", pageToken);
+    const data = await api<{ items?: any[]; nextPageToken?: string }>(
+      link,
+      `/calendars/${enc(link.plannerCalendarId)}/events?${params}`,
+      "Planner lezen"
+    );
+    items.push(...(data.items || []).map(toPlannerItem));
+    if (!data.nextPageToken) break;
+    pageToken = data.nextPageToken;
+  }
+  return items;
+}
+
+/** Eén timeblock opzoeken (bijv. naar een andere week verplaatst). Null = weg uit Google. */
+export async function plannerItem(eventId: string): Promise<PlannerItem | null> {
+  const link = (await getSettings()).google;
+  if (!link?.plannerCalendarId) return null;
+  try {
+    return toPlannerItem(await api(link, `/calendars/${enc(link.plannerCalendarId)}/events/${enc(eventId)}`, "timeblock lezen"));
+  } catch (error) {
+    ignoreGone(error);
+    return null;
+  }
 }
 
 // ---------- Schrijven: timeblocks ----------
@@ -340,22 +521,23 @@ const blockFields = (t: Task | null) =>
  * Houdt het timeblock van een taak gelijk met de agenda "Planner" in Google.
  * Geeft het (nieuwe) event-id terug; een fout laat de taak zelf gewoon opslaan.
  */
-export async function syncBlock(before: Task | null, after: Task | null): Promise<{ eventId: string | null; error: string | null }> {
+export async function syncBlock(
+  before: Task | null,
+  after: Task | null
+): Promise<{ eventId: string | null; syncedAt: number | null; error: string | null }> {
   const current = after?.googleEventId ?? before?.googleEventId ?? null;
-  if (blockFields(before) === blockFields(after) && (current || !after?.blockStart)) return { eventId: current, error: null };
+  const syncedAt = after?.googleSyncedAt ?? before?.googleSyncedAt ?? null;
+  const unchanged = { eventId: current, syncedAt, error: null };
+  if (blockFields(before) === blockFields(after) && (current || !after?.blockStart)) return unchanged;
 
   const link = (await getSettings()).google;
-  if (!link || !link.plannerCalendarId || link.needsReconnect || !googleConfigured()) return { eventId: current, error: null };
+  if (!link || !link.plannerCalendarId || link.needsReconnect || !googleConfigured()) return unchanged;
   const calendar = `/calendars/${enc(link.plannerCalendarId)}/events`;
 
   try {
     if (!after || !after.blockStart) {
-      if (current) {
-        await api(link, `${calendar}/${enc(current)}`, "timeblock verwijderen", { method: "DELETE" }).catch((error) => {
-          if (!(error instanceof GoogleError) || ![404, 410].includes(error.status)) throw error;
-        });
-      }
-      return { eventId: null, error: null };
+      if (current) await api(link, `${calendar}/${enc(current)}`, "timeblock verwijderen", { method: "DELETE" }).catch(ignoreGone);
+      return { eventId: null, syncedAt: Date.now(), error: null };
     }
     const body = JSON.stringify({
       summary: `${after.status === "af" ? "✓ " : ""}${after.title}`,
@@ -363,20 +545,22 @@ export async function syncBlock(before: Task | null, after: Task | null): Promis
       start: { dateTime: `${after.blockStart}:00`, timeZone: DEFAULT_TZ },
       end: { dateTime: `${addMinutesLocal(after.blockStart, after.estimate || 30)}:00`, timeZone: DEFAULT_TZ },
       extendedProperties: { private: { plannerTaskId: after.id } },
+      // Ook als het blok in Google net was verwijderd: de wijziging in de app wint.
+      status: "confirmed",
     });
     if (current) {
       try {
         await api(link, `${calendar}/${enc(current)}`, "timeblock bijwerken", { method: "PATCH", body });
-        return { eventId: current, error: null };
+        return { eventId: current, syncedAt: Date.now(), error: null };
       } catch (error) {
-        // Event in Google weggehaald: opnieuw aanmaken.
-        if (!(error instanceof GoogleError) || ![404, 410].includes(error.status)) throw error;
+        // Event in Google helemaal weg: opnieuw aanmaken.
+        ignoreGone(error);
       }
     }
     const created = await api<{ id: string }>(link, calendar, "timeblock aanmaken", { method: "POST", body });
-    return { eventId: created.id, error: null };
+    return { eventId: created.id, syncedAt: Date.now(), error: null };
   } catch (error: any) {
     console.error("taken google sync", error);
-    return { eventId: current, error: error?.message || "Google Agenda niet bereikbaar" };
+    return { eventId: current, syncedAt, error: error?.message || "Google Agenda niet bereikbaar" };
   }
 }

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect } from "react";
+import { DragProvider } from "./calendar/DragLayer";
 import CommandPalette from "./CommandPalette";
 import FocusBar from "./FocusBar";
 import { SearchIcon } from "./icons";
@@ -12,7 +13,7 @@ import TaskSheet from "./TaskSheet";
 
 export default function Shell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname() || "";
-  const { tasks, addRef, toast, editing, openTask, palette, openPalette } = useTaken();
+  const { tasks, addRef, toast, editing, openTask, palette, openPalette, undoLast } = useTaken();
   const inboxCount = tasks.filter((t) => t.status === "inbox").length;
 
   // Sneltoetsen: ⌘K of / zoekt, N voegt toe, Escape sluit.
@@ -23,6 +24,12 @@ export default function Shell({ children }: { children: React.ReactNode }) {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
         e.preventDefault();
         openPalette(palette ? null : "search");
+        return;
+      }
+      // ⌘Z: laatste actie (verplaatsen, afvinken, verwijderen) terugdraaien.
+      if ((e.metaKey || e.ctrlKey) && !e.shiftKey && e.key.toLowerCase() === "z" && !typing) {
+        e.preventDefault();
+        undoLast();
         return;
       }
       if (typing || e.metaKey || e.ctrlKey || e.altKey) return;
@@ -39,7 +46,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [addRef, editing, openTask, palette, openPalette]);
+  }, [addRef, editing, openTask, palette, openPalette, undoLast]);
 
   // Service worker voor de app op je beginscherm.
   useEffect(() => {
@@ -82,7 +89,9 @@ export default function Shell({ children }: { children: React.ReactNode }) {
           <span className="tk-kbd">/</span> zoeken
         </div>
       </nav>
-      <main className={`tk-main ${pathname.startsWith("/app/agenda") ? "is-wide" : ""}`}>{children}</main>
+      <main className={`tk-main ${pathname === "/app" ? "is-wide" : pathname.startsWith("/app/week") ? "is-full" : ""}`}>
+        <DragProvider>{children}</DragProvider>
+      </main>
       <nav className="tk-bottom" aria-label="Menu">
         {NAV.map(({ href, label, Icon }) => (
           <Link key={href} href={href} aria-current={current(href)}>
