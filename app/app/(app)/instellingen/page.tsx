@@ -46,8 +46,9 @@ export default function SettingsPage() {
         : { text: FLASH[google] || "", error: google !== "gekoppeld" }
     );
     router.replace(pathname || "/app/instellingen");
-    // Na koppelen de nieuwe stand ophalen.
-    api<{ settings: PublicSettings }>("/api/taken/settings").then((d) => setSettings(d.settings)).catch(() => {});
+    // Na koppelen meteen je agenda's ophalen en de agenda "Planner" klaarzetten.
+    if (google === "gekoppeld") act("googleRefresh", {}, "refresh");
+    else api<{ settings: PublicSettings }>("/api/taken/settings").then((d) => setSettings(d.settings)).catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -162,7 +163,17 @@ export default function SettingsPage() {
 
             <div className="tk-h2 mt-5">Tonen in de app</div>
             <div className="tk-list mt-1">
-              {g.calendars.length === 0 && <div className="tk-empty">Geen agenda&apos;s gevonden.</div>}
+              {g.calendars.length === 0 && (
+                <div className="tk-empty">
+                  {busy === "refresh" ? (
+                    "Agenda's ophalen…"
+                  ) : (
+                    <button type="button" className="tk-btn tk-btn-ghost tk-btn-sm" onClick={() => act("googleRefresh", {}, "refresh")}>
+                      Agenda&apos;s ophalen
+                    </button>
+                  )}
+                </div>
+              )}
               {g.calendars.map((c) => (
                 <label key={c.id} className="tk-row cursor-pointer items-center" style={{ padding: "9px 0" }}>
                   <input type="checkbox" checked={c.selected} onChange={() => toggleCalendar(c.id)} />

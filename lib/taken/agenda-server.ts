@@ -16,9 +16,20 @@ export const normalizeIcsUrl = (url: string) => url.trim().replace(/^webcal:\/\/
 async function loadIcs(source: Pick<IcsSource, "name" | "url">, fresh = false) {
   const hit = icsCache.get(source.url);
   if (!fresh && hit && Date.now() - hit.at < TTL) return hit.raws;
-  const res = await fetch(source.url, { cache: "no-store", headers: { Accept: "text/calendar" } });
-  if (!res.ok) throw new Error(`${source.name}: ${res.status === 404 ? "link niet gevonden" : `fout ${res.status}`}`);
-  const text = await res.text();
+  // Tijdslimiet, zodat een trage agenda-link de app niet laat hangen.
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 7000);
+  let text: string;
+  try {
+    const res = await fetch(source.url, { cache: "no-store", headers: { Accept: "text/calendar" }, signal: controller.signal });
+    if (!res.ok) throw new Error(`${source.name}: ${res.status === 404 ? "link niet gevonden" : `fout ${res.status}`}`);
+    text = await res.text();
+  } catch (error: any) {
+    if (controller.signal.aborted) throw new Error(`${source.name}: geen antwoord binnen 7 s`);
+    throw error;
+  } finally {
+    clearTimeout(timer);
+  }
   if (!/BEGIN:VCALENDAR/i.test(text)) throw new Error(`${source.name}: dit is geen agenda-link (iCal)`);
   const raws = parseIcs(text);
   icsCache.set(source.url, { at: Date.now(), raws });
