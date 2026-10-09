@@ -38,3 +38,6 @@ next-env.d.ts
 
 # ranking the stars (lokale opslag)
 .rts-data.json
+
+# taken-app (lokale opslag)
+.taken-data.json
