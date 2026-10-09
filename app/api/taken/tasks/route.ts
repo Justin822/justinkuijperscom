@@ -31,7 +31,7 @@ export async function POST(request: Request) {
     for (let i = 0; i < tasks.length; i++) {
       if (!tasks[i].blockStart) continue;
       const sync = await syncBlock(null, tasks[i]);
-      tasks[i] = { ...tasks[i], googleEventId: sync.eventId };
+      tasks[i] = { ...tasks[i], googleEventId: sync.eventId, googleSyncedAt: sync.syncedAt };
       if (sync.error) syncError = true;
     }
     await saveTasks(tasks);

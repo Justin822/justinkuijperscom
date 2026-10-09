@@ -75,7 +75,8 @@ export default function Popover({
       className="tk-pop"
       role="dialog"
       aria-label={label}
-      style={{ width, left: pos?.left ?? anchor.right + 8, top: pos?.top ?? anchor.top, visibility: pos ? "visible" : "hidden" }}
+      // Onzichtbaar tot de plek bekend is; met opacity (niet visibility) zodat autoFocus in het venster werkt.
+      style={{ width, left: pos?.left ?? anchor.right + 8, top: pos?.top ?? anchor.top, opacity: pos ? 1 : 0 }}
     >
       {children}
     </div>

@@ -307,6 +307,13 @@ export function expandEvents(raws: Raw[], from: number, to: number, calendar: st
       color: null,
       link: null,
       meetUrl: meetingLink(`${r.location || ""} ${r.description}`),
+      source: "ics",
+      calendarId: null,
+      eventId: null,
+      editable: false,
+      guests: 0,
+      recurring: Boolean(r.rrule) || r.recurrenceId !== null,
+      organizer: null,
     });
   };
 

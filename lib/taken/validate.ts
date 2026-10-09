@@ -23,7 +23,7 @@ const isBlock = (value: unknown): value is string =>
 
 /** Vult velden aan die oudere taken nog niet hadden. */
 export function normalizeTask(task: any): Task {
-  return { repeat: null, blockStart: null, focusMinutes: 0, googleEventId: null, ...task };
+  return { repeat: null, blockStart: null, focusMinutes: 0, googleEventId: null, googleSyncedAt: null, ...task };
 }
 
 const text = (value: unknown, max: number) =>
@@ -97,6 +97,7 @@ export function newTask(input: any, now = Date.now()): Task | null {
       blockStart: null,
       focusMinutes: 0,
       googleEventId: null,
+      googleSyncedAt: null,
       createdAt: now,
       updatedAt: now,
       doneAt: null,

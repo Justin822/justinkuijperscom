@@ -9,7 +9,7 @@ import { CheckIcon } from "../icons";
 import { anchorOf, type Anchor } from "../Popover";
 import { useTaken } from "../TakenContext";
 import { focusLabel } from "../TaskRow";
-import BlockPopover, { type Block } from "./BlockPopover";
+import BlockPopover, { GuestConfirm, type Block } from "./BlockPopover";
 import { useExternalDrag } from "./DragLayer";
 import { layoutDay } from "./layout";
 import QuickCreate from "./QuickCreate";
@@ -26,13 +26,22 @@ import {
   pxToMinutes,
   toMinutes,
 } from "./time";
+import { movable, useEvents } from "./useEvents";
 
 // De agenda: dag- of weekrooster met je afspraken en de timeblocks van taken.
 // Slepen = verplaatsen, randen slepen = duur/begin aanpassen, op een lege plek slepen = nieuw blok.
 // Touch: lang drukken om op te pakken; een geselecteerd blok heeft grepen om op te rekken.
+// Google-afspraken die je zelf organiseert werken hetzelfde; met gasten vraagt de app of zij een mail krijgen.
 
 type Mode = "move" | "resize-top" | "resize-bottom" | "create";
 type DragState = { mode: Mode; id: string; day: string; start: number; end: number; orig: { day: string; start: number; end: number } };
+type Confirm = {
+  kind: "move" | "delete";
+  event: CalendarEvent;
+  change?: { start: number; end: number };
+  message?: string;
+  anchor: Anchor;
+};
 export type Ghost = { taskId: string; day: string; start: number; end: number };
 
 const floorQuarter = (m: number) => Math.floor(m / 15) * 15;
@@ -62,6 +71,7 @@ export default function CalendarGrid({
   onDayClick?: (day: string) => void;
 }) {
   const { tasks, today, workday, changeTask, updateTask } = useTaken();
+  const eventActions = useEvents();
   const H = hourHeight;
   const scrollRef = useRef<HTMLDivElement>(null);
   const colsRef = useRef<HTMLDivElement>(null);
@@ -74,6 +84,9 @@ export default function CalendarGrid({
   const [selected, setSelected] = useState<string | null>(null);
   const [popover, setPopover] = useState<{ block: Block; anchor: Anchor } | null>(null);
   const [creating, setCreating] = useState<{ day: string; start: number; end: number; anchor: Anchor } | null>(null);
+  // Afspraak met gasten versleept: blijft op de nieuwe plek staan tot je kiest of de gasten een mail krijgen.
+  const [confirm, setConfirm] = useState<Confirm | null>(null);
+  const [pending, setPending] = useState<{ id: string; day: string; start: number; end: number } | null>(null);
   const touchLock = useRef(false);
   const [now, setNow] = useState(() => Date.now());
   const ext = useExternalDrag();
@@ -107,11 +120,13 @@ export default function CalendarGrid({
       if (e.allDay) continue;
       const s = localParts(e.start);
       const en = localParts(e.end);
+      // Een afspraak binnen één dag houdt zijn id, ook als je hem naar een andere dag sleept.
+      const oneDay = s.date === localParts(e.end - 1).date;
       for (const day of days) {
         if (day < s.date || day > en.date) continue;
         const start = day === s.date ? s.minutes : 0;
         const end = day === en.date ? en.minutes : DAY_MINUTES;
-        if (end > start) list.push({ id: `${e.id}|${day}`, kind: "event", day, start, end, event: e });
+        if (end > start) list.push({ id: oneDay ? e.id : `${e.id}|${day}`, kind: "event", day, start, end, event: e });
       }
     }
     return list;
@@ -129,9 +144,10 @@ export default function CalendarGrid({
   const hasLane = lanes.some((l) => l.events.length || l.tasks.length);
 
   // Tijdens slepen staat het blok op zijn nieuwe plek (ook in een andere dagkolom).
-  const display = blocks.map((b) =>
-    drag && b.kind === "task" && b.id === drag.id ? { ...b, day: drag.day, start: drag.start, end: drag.end } : b
-  );
+  const moved = drag || pending;
+  const display = blocks.map((b) => (moved && b.id === moved.id ? { ...b, day: moved.day, start: moved.start, end: moved.end } : b));
+  /** Kun je dit blok slepen en oprekken? */
+  const canEdit = (b: Block | null | undefined) => Boolean(b && (b.kind === "task" || movable(b.event)));
 
   // ---------- Hulpjes ----------
   const slotAt = useCallback(
@@ -189,21 +205,45 @@ export default function CalendarGrid({
     [ext, slotAt]
   );
 
+  /** Nieuwe tijd voor een Google-afspraak; met gasten eerst vragen of zij een mail krijgen. */
+  const moveEvent = (blockId: string, e: CalendarEvent, day: string, start: number, end: number, message: string) => {
+    const change = { start: localMs(day, start), end: localMs(day, end) };
+    if (change.start === e.start && change.end === e.end) return;
+    if (e.guests > 0) {
+      setPending({ id: blockId, day, start, end });
+      setConfirm({ kind: "move", event: e, change, message, anchor: rangeAnchor(day, start, end) });
+      return;
+    }
+    eventActions.update(e, change, message);
+  };
+
+  const removeEvent = (e: CalendarEvent, anchor: Anchor) => {
+    setPopover(null);
+    setSelected(null);
+    if (e.guests > 0) setConfirm({ kind: "delete", event: e, anchor });
+    else eventActions.remove(e);
+  };
+
   const commit = (d: DragState) => {
     if (d.mode === "create") {
       setCreating({ day: d.day, start: d.start, end: d.end, anchor: rangeAnchor(d.day, d.start, d.end) });
       return;
     }
-    const task = tasks.find((t) => t.id === d.id);
-    if (!task) return;
     if (d.day === d.orig.day && d.start === d.orig.start && d.end === d.orig.end) return;
-    const patch: Partial<Task> = { blockStart: blockStartOf(d.day, d.start), planDate: d.day };
-    if (d.end - d.start !== d.orig.end - d.orig.start) patch.estimate = d.end - d.start;
-    if (task.status === "inbox") patch.status = "gepland";
     const message =
       d.mode === "move"
         ? `Verplaatst naar ${dayName(d.day)}${fmt(d.start)}`
         : `${fmt(d.start)}–${fmt(d.end)} · ${durationLabel(d.end - d.start)}`;
+    const block = blocks.find((b) => b.id === d.id);
+    if (block?.kind === "event" && block.event) {
+      moveEvent(block.id, block.event, d.day, d.start, d.end, message);
+      return;
+    }
+    const task = tasks.find((t) => t.id === d.id);
+    if (!task) return;
+    const patch: Partial<Task> = { blockStart: blockStartOf(d.day, d.start), planDate: d.day };
+    if (d.end - d.start !== d.orig.end - d.orig.start) patch.estimate = d.end - d.start;
+    if (task.status === "inbox") patch.status = "gepland";
     changeTask(task.id, patch, message);
   };
 
@@ -221,7 +261,7 @@ export default function CalendarGrid({
     const x0 = e.clientX;
     const y0 = e.clientY;
     const slot0 = slotAt(x0, y0);
-    const draggable = !block || block.kind === "task";
+    const draggable = !block || canEdit(block);
     const orig = block
       ? { day: block.day, start: block.start, end: block.end }
       : { day: slot0.day, start: floorQuarter(slot0.minutes), end: floorQuarter(slot0.minutes) + 15 };
@@ -268,7 +308,7 @@ export default function CalendarGrid({
     };
     const click = () => {
       if (block) {
-        setSelected(block.kind === "task" ? block.id : null);
+        setSelected(canEdit(block) ? block.id : null);
         setCreating(null);
         setPopover({ block, anchor: anchorOf(target) });
         return;
@@ -278,7 +318,7 @@ export default function CalendarGrid({
         place(placingTaskId, orig.day, orig.start);
         return;
       }
-      if (popover || selected || creating) {
+      if (popover || selected || creating || confirm) {
         setPopover(null);
         setSelected(null);
         setCreating(null);
@@ -334,13 +374,17 @@ export default function CalendarGrid({
     const onKey = (e: KeyboardEvent) => {
       const el = e.target as HTMLElement;
       if (el.closest("input, textarea, select, [contenteditable]") || e.metaKey || e.ctrlKey) return;
-      const task = tasks.find((t) => t.id === selected);
-      if (!task?.blockStart) return;
-      const day = task.blockStart.slice(0, 10);
-      const start = toMinutes(task.blockStart.slice(11, 16));
-      const dur = task.estimate || 30;
-      const set = (d: string, s: number, len: number) =>
-        updateTask(task.id, { blockStart: blockStartOf(d, clamp(s, 0, DAY_MINUTES - len)), estimate: len, planDate: d });
+      const block = blocks.find((b) => b.id === selected);
+      if (!block || !canEdit(block)) return;
+      const task = block.kind === "task" ? block.task : undefined;
+      const event = block.kind === "event" ? block.event : undefined;
+      const { day, start } = block;
+      const dur = block.end - block.start;
+      const set = (d: string, s: number, len: number) => {
+        const from = clamp(s, 0, DAY_MINUTES - len);
+        if (task) updateTask(task.id, { blockStart: blockStartOf(d, from), estimate: len, planDate: d });
+        else if (event) moveEvent(block.id, event, d, from, from + len, `${dayName(d)}${fmt(from)}–${fmt(from + len)}`);
+      };
       if (e.key === "ArrowUp" || e.key === "ArrowDown") {
         e.preventDefault();
         const delta = e.key === "ArrowUp" ? -15 : 15;
@@ -350,14 +394,18 @@ export default function CalendarGrid({
         e.preventDefault();
         const i = days.indexOf(day) + (e.key === "ArrowLeft" ? -1 : 1);
         if (days[i]) set(days[i], start, dur);
-      } else if (e.key === " ") {
+      } else if (e.key === " " && task) {
         e.preventDefault();
         toggleDone(task);
       } else if (e.key === "Backspace" || e.key === "Delete") {
         e.preventDefault();
-        changeTask(task.id, { blockStart: null }, "Uit de agenda gehaald");
-        setSelected(null);
-        setPopover(null);
+        if (task) {
+          changeTask(task.id, { blockStart: null }, "Uit de agenda gehaald");
+          setSelected(null);
+          setPopover(null);
+        } else if (event) {
+          removeEvent(event, rangeAnchor(day, block.start, block.end));
+        }
       } else if (e.key === "Escape") {
         setSelected(null);
         setPopover(null);
@@ -366,7 +414,7 @@ export default function CalendarGrid({
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selected, tasks, days]);
+  }, [selected, blocks, days]);
 
   // ---------- Hoogte: het rooster vult de rest van het scherm ----------
   const [height, setHeight] = useState(480);
@@ -530,13 +578,20 @@ export default function CalendarGrid({
                     };
                     if (b.kind === "event") {
                       const e = b.event as CalendarEvent;
+                      const editable = canEdit(b);
+                      const isMoved = Boolean(moved && b.id === moved.id);
                       return (
                         <div
                           key={b.id}
-                          className={`cal-block is-event ${e.busy ? "" : "is-free"} ${compact ? "is-compact" : ""}`}
+                          className={`cal-block is-event ${e.busy ? "" : "is-free"} ${compact ? "is-compact" : ""} ${
+                            editable ? "is-editable" : ""
+                          } ${selected === b.id ? "is-selected" : ""} ${dragging ? "is-dragging" : ""} ${
+                            e.eventId ? "" : "is-saving"
+                          }`}
                           style={{ ...style, ...(e.color ? { ["--c" as any]: e.color } : {}) }}
                           onPointerDown={(ev) => startPress(ev, "move", b)}
                           title={`${fmt(b.start)}–${fmt(b.end)} ${e.title}`}
+                          data-event={e.id}
                         >
                           <div className="cal-text">
                             <span className="cal-title">{e.title}</span>
@@ -545,6 +600,13 @@ export default function CalendarGrid({
                               {compact ? "" : `–${fmt(b.end)}`}
                             </span>
                           </div>
+                          {isMoved && <span className="cal-drag-label">{`${fmt(b.start)}–${fmt(b.end)}`}</span>}
+                          {editable && (
+                            <>
+                              <div className="cal-handle is-top" onPointerDown={(ev) => startPress(ev, "resize-top", b)} />
+                              <div className="cal-handle is-bottom" onPointerDown={(ev) => startPress(ev, "resize-bottom", b)} />
+                            </>
+                          )}
                         </div>
                       );
                     }
@@ -631,6 +693,29 @@ export default function CalendarGrid({
           anchor={popover.anchor}
           onClose={() => {
             setPopover(null);
+          }}
+          onEventTime={(e, start, end, message) => {
+            const b = blocks.find((x) => x.kind === "event" && x.event?.id === e.id);
+            const s0 = localParts(start);
+            if (b) moveEvent(b.id, e, s0.date, s0.minutes, s0.minutes + Math.round((end - start) / 60000), message);
+          }}
+          onEventDelete={(e) => removeEvent(e, popover.anchor)}
+        />
+      )}
+      {confirm && (
+        <GuestConfirm
+          anchor={confirm.anchor}
+          kind={confirm.kind}
+          event={confirm.event}
+          onChoose={(mail) => {
+            if (confirm.kind === "move" && confirm.change) eventActions.update(confirm.event, confirm.change, confirm.message || "Verplaatst", mail);
+            if (confirm.kind === "delete") eventActions.remove(confirm.event, mail);
+            setPending(null);
+            setConfirm(null);
+          }}
+          onCancel={() => {
+            setPending(null);
+            setConfirm(null);
           }}
         />
       )}

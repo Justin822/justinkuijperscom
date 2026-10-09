@@ -16,6 +16,7 @@ import { useAgenda, useTaken } from "../../_components/TakenContext";
 
 type Span = 1 | 3 | 5 | 7;
 const SPAN_KEY = "tk-week-span";
+const RECONNECT_KEY = "tk-hide-reconnect";
 
 /** ISO-weeknummer. */
 function weekNumber(date: string) {
@@ -28,11 +29,20 @@ function weekNumber(date: string) {
 
 export default function WeekPage() {
   const router = useRouter();
-  const { tasks, today, openTask } = useTaken();
+  const { tasks, today, openTask, settings } = useTaken();
   const [anchor, setAnchor] = useState(today);
   const [span, setSpan] = useState<Span>(7);
   const [tray, setTray] = useState(true);
   const [area, setArea] = useState<AreaId | null>(null);
+  const [hideReconnect, setHideReconnect] = useState(true);
+  useEffect(() => {
+    try {
+      setHideReconnect(localStorage.getItem(RECONNECT_KEY) === "1");
+    } catch {
+      setHideReconnect(false);
+    }
+  }, []);
+  const askReconnect = Boolean(settings?.google.connected && !settings.google.needsReconnect && !settings.google.canEdit && !hideReconnect);
   const dragSource = useDragSource();
   const phone = typeof window !== "undefined" && window.matchMedia("(max-width: 899px)").matches;
 
@@ -123,6 +133,28 @@ export default function WeekPage() {
           </button>
         </div>
       )}
+      {askReconnect && (
+        <div className="tk-banner is-soft mb-3">
+          <span className="min-w-0 flex-1">Ook je Google-afspraken verslepen en oprekken? Koppel Google één keer opnieuw.</span>
+          <a href="/api/taken/google/connect" className="tk-btn tk-btn-sm">
+            Opnieuw koppelen
+          </a>
+          <button
+            type="button"
+            className="tk-btn tk-btn-quiet tk-btn-sm"
+            onClick={() => {
+              setHideReconnect(true);
+              try {
+                localStorage.setItem(RECONNECT_KEY, "1");
+              } catch {
+                // geen opslag beschikbaar
+              }
+            }}
+          >
+            Later
+          </button>
+        </div>
+      )}
       {data?.errors?.length ? (
         <p className="mb-2 text-sm" style={{ color: "var(--warn)" }}>
           Niet bereikbaar: {data.errors.join(", ")}
@@ -204,7 +236,7 @@ export default function WeekPage() {
             showHeader
             hourHeight={phone ? 44 : 48}
             onDayClick={(day) => router.push(`/app?datum=${day}`)}
-            layoutKey={`${Boolean(data && !data.configured)}-${data?.errors?.length || 0}`}
+            layoutKey={`${Boolean(data && !data.configured)}-${data?.errors?.length || 0}-${askReconnect}`}
           />
         </div>
       </div>

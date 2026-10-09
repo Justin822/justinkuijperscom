@@ -69,12 +69,20 @@ Vier tabs, plus weekreview en dagafsluiting:
 - **Agenda bedienen** (in Vandaag en Week):
   - **slepen** verplaatst (ook naar een andere dag)
   - de **onderrand** rekt de duur op, de **bovenrand** verschuift het begin
-  - **slepen op een lege plek** (of dubbelklikken) maakt een nieuw blok
+  - **slepen op een lege plek** (of dubbelklikken) maakt een nieuw blok: een taak, of met **Tab** een afspraak in Google
   - **het rondje** in een blok vinkt af; **klikken** opent snel duur, focus, uit de agenda en details
   - op de telefoon: **lang drukken** om op te pakken, **tikken** om te selecteren (dan verschijnen grepen om op te rekken), **tik op een lege plek** voor een nieuw blok
   - toetsen op een geselecteerd blok: ↑/↓ 15 min, Shift+↑/↓ duur, ←/→ dag, spatie afvinken, ⌫ uit de agenda
   - alles kan terug met **Ongedaan maken** of **⌘Z**
-- **Google Agenda**: ingeplande taken komen als afspraak in een eigen agenda **Planner** in Google (ook verplaatsen, oprekken en afvinken). Bij een afspraak zie je Deelnemen (Meet/Teams), Open in Google Agenda en "Voorbereiden als taak".
+  - **Google-afspraken** die je zelf organiseert werken net zo:
+    - slepen, oprekken, titel en duur aanpassen, verwijderen
+    - met gasten vraagt de app of zij een mail krijgen
+    - bij een herhalende afspraak geldt het alleen voor die ene keer
+  - alleen lezen: uitnodigingen van anderen en iCal-agenda's
+- **Google Agenda**:
+  - ingeplande taken komen als afspraak in een eigen agenda **Planner** in Google (ook verplaatsen, oprekken en afvinken)
+  - verplaats, rek op of verwijder je zo'n blok in Google (bijv. op je telefoon), dan volgt de taak in de app
+  - bij een afspraak zie je Deelnemen (Meet/Teams), Open in Google en "Voorbereiden als taak"
 - **Notities**: een lijst met zoeken, vastpinnen en gebieden. Notities slaan vanzelf op. Met **Dagnotitie** open je in één tik de notitie van vandaag. Regels die beginnen met `[ ]` zet je met één knop om in taken (ze worden daarna `[→]`). `- ` en `[ ] ` lopen door als lijstje.
 - **Weekreview**: hoeveel dagen je de top 3 haalde (doel 4 van 5), hoeveel dagen je afsloot met een lege inbox, per gebied wat af is, wat open staat en hoeveel focustijd erin zat, en wat blijft liggen. Je focus voor volgende week sla je op als notitie.
 - **Dag afsluiten**: inbox naar nul, vandaag afronden (de rest schuift door), en na 3× doorschuiven kiezen: doen, inplannen, ooit of schrappen.
@@ -100,7 +108,7 @@ Bij een terugkerende taak staat de volgende keer klaar zodra je hem afvinkt. Mee
 
 1. `TAKEN_PASSWORD`: wachtwoord voor de app. Lokaal is het `taken`.
 2. Opslag gebruikt dezelfde Upstash Redis als Ranking the Stars (`KV_REST_API_URL`/`_TOKEN`, gratis tier). Zonder Redis gaat alles in een tijdelijk bestand dat op Vercel niet bewaard blijft.
-3. Agenda's koppel je in de app zelf: **Instellingen** (zijbalk, of het tandwiel in Agenda).
+3. Agenda's koppel je in de app zelf: **Instellingen** (zijbalk, of het tandwiel in Week).
    - **Outlook**: plak de ICS-link. In Outlook op het web vind je die via Instellingen → Agenda → Gedeelde agenda's → "Een agenda publiceren" → "Kan alle details bekijken" → ICS-link. Ontbreekt die optie bij Appèl, dan heeft IT publiceren uitgezet.
    - **Google Agenda**: klik "Koppel Google Agenda". Daarvoor is eenmalig een eigen (gratis) Google-client nodig, zie hieronder.
 
@@ -115,6 +123,15 @@ Bij een terugkerende taak staat de volgende keer klaar zodra je hem afvinkt. Mee
 5. Zet de client-ID en het clientgeheim in Vercel als `GOOGLE_CLIENT_ID` en `GOOGLE_CLIENT_SECRET` en deploy opnieuw.
 6. In de app: Instellingen → **Koppel Google Agenda**.
 
-Wat de app mag: al je agenda's **lezen**, en alleen in de agenda **Planner** (die hij zelf aanmaakt) afspraken zetten, wijzigen en verwijderen. Je andere agenda's kan hij niet aanpassen. Ontkoppelen kan in Instellingen; de agenda Planner blijft dan in Google staan.
+Wat de app mag:
+- al je agenda's **lezen**
+- timeblocks zetten in de agenda **Planner**, die hij zelf aanmaakt
+- **afspraken** aanmaken, verplaatsen, oprekken en verwijderen (`calendar.events`), alleen als jij dat in de app doet
+
+Nieuwe afspraken komen in je hoofdagenda; dat kies je in Instellingen bij "Nieuwe afspraken in".
+
+Koppelde je Google al vóór afspraken bewerken bestond? Dan vraagt de app één keer om **opnieuw te koppelen** voor het extra recht.
+
+Ontkoppelen kan in Instellingen; de agenda Planner blijft dan in Google staan.
 
 Gebieden en hun trefwoorden pas je aan in `lib/taken/config.ts`. Je werkdag (voor "vrije tijd" en de top 3) stel je in bij Instellingen.

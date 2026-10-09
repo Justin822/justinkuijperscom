@@ -406,6 +406,20 @@
 .tk .tk-seg button:disabled {
   opacity: 0.4;
 }
+.tk .tk-seg.tk-seg-xs button {
+  padding: 2px 8px;
+  font-size: 12px;
+}
+.tk .tk-select-bare {
+  min-width: 0;
+  max-width: 100%;
+  background: transparent;
+  border: 0;
+  outline: none;
+  padding: 0;
+  color: var(--text);
+  font: inherit;
+}
 
 /* Tabs met onderstreping */
 .tk .tk-tabs {
@@ -815,6 +829,13 @@
 @media (min-width: 900px) {
   .tk .tk-toast {
     bottom: 24px;
+  }
+}
+/* Een sheet staat open (telefoon): melding bovenin, zodat hij de sheet niet bedekt. */
+@media (max-width: 899px) {
+  .tk:has(.tk-sheet) .tk-toast {
+    top: calc(12px + env(safe-area-inset-top));
+    bottom: auto;
   }
 }
 
@@ -1519,6 +1540,12 @@ html.tk-dragging * {
   background: transparent;
   border: 1px dashed var(--line-strong);
   border-left: 3px solid var(--c);
+}
+.tk .cal-block.is-event.is-editable {
+  cursor: grab;
+}
+.tk .cal-block.is-event.is-saving {
+  opacity: 0.6;
 }
 .tk .cal-block.is-task {
   background: var(--text);

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { clearIcsCache, normalizeIcsUrl, testIcs } from "@/lib/taken/agenda-server";
-import { disconnect, refreshCalendars, selectCalendars } from "@/lib/taken/google";
+import { disconnect, refreshCalendars, selectCalendars, setDefaultCalendar } from "@/lib/taken/google";
 import { fail, noStore } from "@/lib/taken/server";
 import { publicSettings } from "@/lib/taken/settings";
 import { getSettings, updateSettings } from "@/lib/taken/store";
@@ -56,6 +56,11 @@ export async function POST(request: Request) {
       case "googleCalendars": {
         const selected = Array.isArray(body.selected) ? body.selected.filter((x: unknown) => typeof x === "string") : [];
         await selectCalendars(selected);
+        return reply();
+      }
+      case "googleDefault": {
+        if (typeof body.calendarId !== "string") return bad("Kies een agenda.");
+        await setDefaultCalendar(body.calendarId);
         return reply();
       }
       case "googleRefresh": {

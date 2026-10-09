@@ -78,6 +78,7 @@ export function spawnNext(task: Task, today: string, now = Date.now()): Task | n
     deadline: task.deadline ? addDays(task.deadline, shift) : null,
     blockStart: null,
     googleEventId: null,
+    googleSyncedAt: null,
     postponed: 0,
     focusMinutes: 0,
     createdAt: now,

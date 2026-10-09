@@ -1,4 +1,4 @@
-import { googleConfigured } from "./google";
+import { canEdit, googleConfigured } from "./google";
 import type { PublicSettings, Settings } from "./types";
 
 // Wat de browser van de instellingen mag zien: geen tokens en geen volledige agenda-links.
@@ -24,6 +24,8 @@ export function publicSettings(s: Settings): PublicSettings {
       calendars: s.google?.calendars || [],
       needsReconnect: Boolean(s.google?.needsReconnect),
       planner: Boolean(s.google?.plannerCalendarId),
+      canEdit: canEdit(s.google),
+      defaultCalendarId: s.google?.defaultCalendarId || null,
     },
   };
 }
