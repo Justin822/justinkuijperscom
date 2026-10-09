@@ -2,74 +2,74 @@
 
 import { AREA_BY_ID, estimateLabel } from "@/lib/taken/config";
 import { diffDays, formatRelative } from "@/lib/taken/dates";
+import { repeatLabel } from "@/lib/taken/repeat";
 import type { Task } from "@/lib/taken/types";
-import { CheckIcon, MailIcon } from "./icons";
+import { CheckIcon } from "./icons";
 import { useTaken } from "./TakenContext";
 
+export const focusLabel = (m: number) => (m >= 60 ? `${Math.floor(m / 60)}u${m % 60 ? ` ${m % 60}m` : ""}` : `${m} min`);
+
+/** Eén gedempte regel: ● Appèl / Leadgen · vr 16 okt · 30 min · ↻ elke maandag */
 export function TaskMeta({ task, hideArea }: { task: Task; hideArea?: boolean }) {
   const { today } = useTaken();
   const area = task.areaId ? AREA_BY_ID[task.areaId] : null;
-  const chips: React.ReactNode[] = [];
+  const parts: React.ReactNode[] = [];
 
   if (area && !hideArea)
-    chips.push(
-      <span key="area" className="tk-chip">
+    parts.push(
+      <span key="area">
         <span className="tk-dot" style={{ background: area.color }} />
         {area.short}
         {task.project ? ` / ${task.project}` : ""}
       </span>
     );
-  if (!area && task.project) chips.push(<span key="project" className="tk-chip">{task.project}</span>);
+  else if (task.project) parts.push(<span key="project">{task.project}</span>);
   if (task.deadline) {
     const days = diffDays(today, task.deadline);
-    const tone = days < 0 || (task.deadlineHard && days <= 1) ? "tk-chip-danger" : days <= 2 ? "tk-chip-warn" : "";
-    chips.push(
-      <span key="deadline" className={`tk-chip ${tone}`}>
-        {task.deadlineHard ? "⚑ " : ""}
-        {days < 0 ? `te laat · ${formatRelative(task.deadline, today)}` : formatRelative(task.deadline, today)}
+    const tone = days < 0 || (task.deadlineHard && days <= 1) ? "is-danger" : days <= 1 ? "is-warn" : "";
+    parts.push(
+      <span key="deadline" className={tone}>
+        {days < 0 ? "te laat, " : ""}
+        {task.deadlineHard ? "uiterlijk " : ""}
+        {formatRelative(task.deadline, today)}
       </span>
     );
   }
-  if (task.planDate && task.planDate !== task.deadline)
-    chips.push(
-      <span key="plan" className="tk-chip">
-        doen {formatRelative(task.planDate, today)}
+  if (task.blockStart)
+    parts.push(
+      <span key="block" className="is-strong">
+        {task.blockStart.startsWith(today) ? "" : `${formatRelative(task.blockStart.slice(0, 10), today)} `}
+        {task.blockStart.slice(11, 16)}
       </span>
     );
-  if (task.estimate) chips.push(<span key="est" className="tk-chip">{estimateLabel(task.estimate)}</span>);
-  if (task.impact === "hoog") chips.push(<span key="impact" className="tk-chip tk-chip-accent">hoge impact</span>);
-  if (task.status === "bezig") chips.push(<span key="bezig" className="tk-chip tk-chip-accent">bezig</span>);
+  else if (task.planDate && task.planDate !== task.deadline && task.planDate !== today)
+    parts.push(<span key="plan">doen {formatRelative(task.planDate, today)}</span>);
+  if (task.estimate) parts.push(<span key="est">{estimateLabel(task.estimate)}</span>);
+  if (task.repeat) parts.push(<span key="repeat">↻ {repeatLabel(task.repeat)}</span>);
+  if (task.impact === "hoog") parts.push(<span key="impact" className="is-strong">hoge impact</span>);
+  if (task.status === "bezig") parts.push(<span key="bezig" className="is-strong">bezig</span>);
   if (task.status === "wachten")
-    chips.push(
-      <span
-        key="wachten"
-        className={`tk-chip ${task.followUp && task.followUp <= today ? "tk-chip-warn" : ""}`}
-      >
+    parts.push(
+      <span key="wachten" className={task.followUp && task.followUp <= today ? "is-warn" : ""}>
         wacht op {task.waitingOn || "iemand"}
-        {task.followUp ? ` · nabellen ${formatRelative(task.followUp, today)}` : ""}
+        {task.followUp ? `, nabellen ${formatRelative(task.followUp, today)}` : ""}
       </span>
     );
   if (task.postponed > 0)
-    chips.push(
-      <span key="postponed" className={`tk-chip ${task.postponed >= 3 ? "tk-chip-danger" : ""}`}>
-        ↻ {task.postponed}×
+    parts.push(
+      <span key="postponed" className={task.postponed >= 3 ? "is-danger" : ""}>
+        {task.postponed}× doorgeschoven
       </span>
     );
+  if (task.focusMinutes > 0) parts.push(<span key="focus">{focusLabel(task.focusMinutes)} gefocust</span>);
   if (task.mailLink)
-    chips.push(
-      <a
-        key="mail"
-        className="tk-chip tk-chip-accent"
-        href={task.mailLink}
-        target="_blank"
-        rel="noreferrer"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <MailIcon className="h-3 w-3" /> mail
+    parts.push(
+      <a key="mail" href={task.mailLink} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()}>
+        mail
       </a>
     );
 
-  return chips.length ? <div className="tk-row-meta">{chips}</div> : null;
+  return parts.length ? <div className="tk-meta">{parts}</div> : null;
 }
 
 export function CheckButton({ task }: { task: Task }) {
@@ -87,7 +87,9 @@ export function CheckButton({ task }: { task: Task }) {
         } else {
           const previous = task.status;
           updateTask(task.id, { status: "af" });
-          notify("Afgevinkt", () => updateTask(task.id, { status: previous }));
+          notify(task.repeat ? "Afgevinkt, de volgende staat klaar" : "Afgevinkt", () =>
+            updateTask(task.id, { status: previous })
+          );
         }
       }}
     >
@@ -100,24 +102,30 @@ export default function TaskRow({
   task,
   hideArea,
   children,
+  actions,
+  onOpen,
 }: {
   task: Task;
   hideArea?: boolean;
   children?: React.ReactNode;
+  actions?: React.ReactNode;
+  /** Wat een tik op de taak doet; standaard de taak openen. */
+  onOpen?: () => void;
 }) {
   const { openTask } = useTaken();
   return (
     <div className={`tk-row ${task.status === "af" ? "is-done" : ""}`}>
       <CheckButton task={task} />
-      <div className="tk-row-body" onClick={() => openTask(task.id)}>
+      <div className="tk-row-body" onClick={onOpen || (() => openTask(task.id))}>
         <div className="tk-row-title">{task.title}</div>
         <TaskMeta task={task} hideArea={hideArea} />
         {children && (
-          <div className="mt-2" onClick={(e) => e.stopPropagation()}>
+          <div className="mt-2.5" onClick={(e) => e.stopPropagation()}>
             {children}
           </div>
         )}
       </div>
+      {actions && <div className="-my-1 flex items-center">{actions}</div>}
     </div>
   );
 }

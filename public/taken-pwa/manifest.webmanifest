@@ -1,20 +1,43 @@
 {
-  "name": "Taken",
-  "short_name": "Taken",
-  "description": "Alles op één plek, elke dag een top 3.",
+  "name": "Planner",
+  "short_name": "Planner",
+  "description": "Taken, agenda en notities op één plek. Elke dag een top 3.",
   "lang": "nl",
   "start_url": "/app",
   "scope": "/app",
   "display": "standalone",
-  "background_color": "#f6f5f1",
-  "theme_color": "#f6f5f1",
+  "background_color": "#ffffff",
+  "theme_color": "#ffffff",
   "icons": [
-    { "src": "/taken-pwa/icon-192.png", "sizes": "192x192", "type": "image/png" },
-    { "src": "/taken-pwa/icon-512.png", "sizes": "512x512", "type": "image/png" },
-    { "src": "/taken-pwa/icon-maskable.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+    {
+      "src": "/taken-pwa/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/taken-pwa/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    },
+    {
+      "src": "/taken-pwa/icon-maskable.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
   ],
   "shortcuts": [
-    { "name": "Inbox", "url": "/app/inbox" },
-    { "name": "Dag afsluiten", "url": "/app/afsluiten" }
+    {
+      "name": "Taken",
+      "url": "/app/taken"
+    },
+    {
+      "name": "Notities",
+      "url": "/app/notities"
+    },
+    {
+      "name": "Agenda",
+      "url": "/app/agenda"
+    }
   ]
 }

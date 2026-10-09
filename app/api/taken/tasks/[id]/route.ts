@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { deleteTask, getTask, saveTasks } from "@/lib/taken/store";
-import { fail } from "@/lib/taken/server";
+import { completeWithRepeat, dayFrom, fail } from "@/lib/taken/server";
 import { applyPatch, cleanPatch } from "@/lib/taken/validate";
 
 export const dynamic = "force-dynamic";
@@ -11,9 +11,17 @@ export async function PATCH(request: Request, { params }: Context) {
   try {
     const task = await getTask(params.id);
     if (!task) return NextResponse.json({ error: "Deze taak bestaat niet meer." }, { status: 404 });
-    const next = applyPatch(task, cleanPatch(await request.json().catch(() => ({}))));
-    await saveTasks([next]);
-    return NextResponse.json({ task: next });
+    const body = await request.json().catch(() => ({}));
+    let next = applyPatch(task, cleanPatch(body));
+    const created = [];
+    // Terugkerende taak afgevinkt: de volgende keer staat meteen klaar.
+    if (next.status === "af" && task.status !== "af") {
+      const result = completeWithRepeat(next, dayFrom(body?.today));
+      next = result.done;
+      if (result.next) created.push(result.next);
+    }
+    await saveTasks([next, ...created]);
+    return NextResponse.json({ task: next, created });
   } catch (error) {
     return fail("task PATCH", error, "Kon de taak niet bijwerken.");
   }

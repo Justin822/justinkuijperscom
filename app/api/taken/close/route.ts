@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { addDays } from "@/lib/taken/dates";
 import { getDay, getTasks, saveDay, saveTasks } from "@/lib/taken/store";
-import { dayFrom, fail } from "@/lib/taken/server";
+import { completeWithRepeat, dayFrom, fail } from "@/lib/taken/server";
 import type { Task } from "@/lib/taken/types";
 import { applyPatch } from "@/lib/taken/validate";
 
@@ -19,9 +19,11 @@ export async function POST(request: Request) {
     const now = Date.now();
 
     const changed: Task[] = [];
-    for (const task of await getTasks()) {
+    const tasks = await getTasks();
+    for (const task of tasks) {
       if (done.includes(task.id) && task.status !== "af") {
-        changed.push(applyPatch(task, { status: "af" }, now));
+        const result = completeWithRepeat(applyPatch(task, { status: "af" }, now), date, now);
+        changed.push(result.done, ...(result.next ? [result.next] : []));
       } else if (postpone.includes(task.id) && task.status !== "af") {
         changed.push(
           applyPatch(
@@ -37,8 +39,11 @@ export async function POST(request: Request) {
     }
     await saveTasks(changed);
 
+    const byId = new Map(tasks.map((t) => [t.id, t]));
+    for (const t of changed) byId.set(t.id, t);
+    const inboxAtClose = Array.from(byId.values()).filter((t) => t.status === "inbox").length;
     const plan = await getDay(date);
-    if (plan) await saveDay({ ...plan, closedAt: now });
+    if (plan) await saveDay({ ...plan, closedAt: now, inboxAtClose });
     return NextResponse.json({ tasks: changed });
   } catch (error) {
     return fail("close POST", error, "Kon de dag niet afsluiten.");

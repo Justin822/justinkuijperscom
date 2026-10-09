@@ -53,27 +53,43 @@ Setup op Vercel:
    - `RTS_ADMIN_PIN`: pincode voor regiekamer en show. Lokaal is de pincode `1234`.
 3. Namen en vragen staan in `lib/rankingthestars/config.ts` (alleen server-side; ze gaan pas na de teamcode naar de browser). Pas alleen `name` aan, laat de `id` staan. Foto's kunnen in `public/rts-photos/`.
 
-## Taken (persoonlijke todo-app)
+## Planner (persoonlijke productiviteits-app)
 
-Eén plek voor al je taken, met elke ochtend een top 3. Staat op `/app` (justinkuijpers.com/app). Kost €0 per jaar: geen AI, geen betaalde diensten.
+Taken, agenda en notities op één plek, met elke ochtend een top 3. Staat op `/app` (justinkuijpers.com/app). Kost €0 per jaar: geen AI en geen betaalde diensten.
 
-- **Snelle invoer**: typ een gewone zin, bijv. `Offerte Jansen vrijdag, Appèl, half uur`. De parser (`lib/taken/parse.ts`) herkent:
-  - **dagen**: vandaag, morgen, vrijdag, volgende week (dinsdag), deze week, eind van de maand, 16 okt, 16-10, over 3 dagen
-  - **harde deadline**: `uiterlijk`, `deadline` of `voor` ervoor, of `!` aan het eind
-  - **tijd**: 5 min, kwartier, half uur, 2u, halve dag
-  - **gebied**: als los stukje tussen komma's of als `#tag` (`#appel/leadgeneratie` zet ook het project)
-  - **impact**: `!!`, `#hoog`, `, belangrijk,`
-  - **lijsten**: `wachten op Piet`, `ooit`
-  - **plandag**: `@morgen` (de dag waarop je het wilt doen, los van de deadline)
+Vier tabs, plus weekreview en dagafsluiting:
 
-  Meerdere taken tegelijk: nieuwe regel, `;` of "en daarnaast". De microfoonknop gebruikt de spraakherkenning van je browser. Sneltoets `N` opent het invoerveld.
-- **Vandaag**: top 3 met één zin waarom, wisselen met één tik, "als er tijd over is" en wie je vandaag moet nabellen. De top 3 wordt bij de eerste keer openen van de dag gekozen (`lib/taken/score.ts`). Telt mee: deadlines (hard zwaarder), plandag, impact, hoe vaak doorgeschoven, korte taken en balans tussen gebieden. Maximaal één taak van een halve dag of meer.
-- **Inbox, Gebieden, Wachten op, Ooit** en een **dagafsluiting** in stappen: inbox naar nul, vandaag afronden (de rest schuift door), en na 3× doorschuiven kiezen: doen, inplannen, ooit of schrappen.
-- **Op je telefoon**: open de app in Safari en kies Deel → "Zet op beginscherm". Daarna werkt hij als een gewone app.
+- **Vandaag**: top 3 met één zin waarom, focusknop en wisselen per taak, je afspraken van vandaag, hoeveel werktijd er nog vrij is, wie je moet nabellen, en "als er tijd over is".
+- **Taken**: één lijst met Inbox / Open / Wachten op / Ooit / Af, filter per gebied en zoeken. Open is gegroepeerd per gebied en project. In de Inbox tik je een taak aan om hem een plek te geven.
+- **Agenda**: weekstrip en dagtijdlijn met je afspraken (alleen lezen via een iCal-link) en timeblocks voor taken. Tik op een taak en dan op een tijd, kies "Eerste vrije plek", of sleep op de laptop.
+- **Notities**: een lijst met zoeken, vastpinnen en gebieden. Notities slaan vanzelf op. Met **Dagnotitie** open je in één tik de notitie van vandaag. Regels die beginnen met `[ ]` zet je met één knop om in taken (ze worden daarna `[→]`). `- ` en `[ ] ` lopen door als lijstje.
+- **Weekreview**: hoeveel dagen je de top 3 haalde (doel 4 van 5), hoeveel dagen je afsloot met een lege inbox, per gebied wat af is, wat open staat en hoeveel focustijd erin zat, en wat blijft liggen. Je focus voor volgende week sla je op als notitie.
+- **Dag afsluiten**: inbox naar nul, vandaag afronden (de rest schuift door), en na 3× doorschuiven kiezen: doen, inplannen, ooit of schrappen.
+- **Focus-timer**: 25/50/90 minuten op een taak, met een balk onderin of een volledig scherm. De gewerkte minuten tellen op per taak.
+- **Zoeken overal**: `⌘K` of `/` zoekt in taken en notities en springt naar elk scherm. `N` voegt overal een taak toe.
 
-Setup op Vercel:
+### Snelle invoer
 
-1. Zet `TAKEN_PASSWORD` (lang wachtwoord) in de env-variabelen en redeploy. Lokaal is het wachtwoord `taken`.
+Typ een gewone zin, bijv. `Offerte Jansen vrijdag, Appèl, half uur`. De parser (`lib/taken/parse.ts`) herkent:
+
+- **dagen**: vandaag, morgen, vrijdag, volgende week (dinsdag), deze week, eind van de maand, 16 okt, 16-10, over 3 dagen
+- **harde deadline**: `uiterlijk`, `deadline` of `voor` ervoor, of `!` aan het eind
+- **tijd**: 5 min, kwartier, half uur, 2u, halve dag
+- **gebied**: als los stukje tussen komma's of als `#tag`; `#appel/leadgeneratie` zet ook het project
+- **impact**: `!!`, `#hoog`, `, belangrijk,`
+- **lijsten**: `wachten op Piet`, `ooit`
+- **plandag**: `@morgen`
+- **herhalen**: `elke maandag`, `elke werkdag`, `om de 2 weken op zaterdag`, `maandelijks`, `elke 3 dagen`
+
+Bij een terugkerende taak staat de volgende keer klaar zodra je hem afvinkt. Meerdere taken tegelijk kan met een nieuwe regel, `;` of "en daarnaast". De microfoonknop gebruikt de spraakherkenning van je browser.
+
+### Setup op Vercel
+
+1. `TAKEN_PASSWORD`: wachtwoord voor de app. Lokaal is het `taken`.
 2. Opslag gebruikt dezelfde Upstash Redis als Ranking the Stars (`KV_REST_API_URL`/`_TOKEN`, gratis tier). Zonder Redis gaat alles in een tijdelijk bestand dat op Vercel niet bewaard blijft.
+3. Optioneel `AGENDA_ICS_URLS`: één of meer geheime iCal-links, gescheiden door komma's, met een naam ervoor, bijv. `Privé|https://calendar.google.com/calendar/ical/…/basic.ics, Appèl|https://outlook.office365.com/owa/calendar/…/calendar.ics`. Daarna opnieuw deployen.
+   - **Google Agenda**: Instellingen → klik links je agenda aan → "Agenda integreren" → kopieer **"Geheim adres in iCal-indeling"**.
+   - **Outlook**: Instellingen → Agenda → Gedeelde agenda's → "Een agenda publiceren" → kies de agenda en "Kan alle details bekijken" → kopieer de **ICS**-link. Dit kan bij Appèl uitgezet zijn door IT.
+   - De link geeft leestoegang tot je agenda; deel hem met niemand. De app haalt hem hooguit eens per 5 minuten op.
 
-Gebieden en hun trefwoorden pas je aan in `lib/taken/config.ts`.
+Gebieden en hun trefwoorden pas je aan in `lib/taken/config.ts`. De werkdag voor "vrije tijd" (09:00–17:30) staat in `lib/taken/agenda.ts`.
