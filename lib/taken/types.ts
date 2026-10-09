@@ -79,6 +79,12 @@ export type CalendarEvent = {
   endDate: string | null;
   /** Telt mee als bezet (TRANSP:TRANSPARENT telt niet). */
   busy: boolean;
+  /** Kleur van de agenda (Google), anders null. */
+  color: string | null;
+  /** Openen in Google Agenda. */
+  link: string | null;
+  /** Videogesprek: Meet, Teams of Zoom. */
+  meetUrl: string | null;
 };
 
 export type IcsSource = { id: string; name: string; url: string };

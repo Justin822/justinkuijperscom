@@ -59,10 +59,22 @@ Taken, agenda en notities op één plek, met elke ochtend een top 3. Staat op `/
 
 Vier tabs, plus weekreview en dagafsluiting:
 
-- **Vandaag**: top 3 met één zin waarom, focusknop en wisselen per taak, je afspraken van vandaag, hoeveel werktijd er nog vrij is, wie je moet nabellen, en "als er tijd over is".
+- **Vandaag** (dagplanner):
+  - links je top 3 en "Te plannen", rechts je dag in de agenda; op de telefoon wissel je met **Lijst | Dag**
+  - sleep taken naar een tijd, of tik op het agenda-icoon
+  - **Plan mijn dag** zet je top 3 en wat erbij past in je vrije werktijd: eerst als voorstel, dan Toepassen
+  - met ‹ › plan je ook morgen alvast
 - **Taken**: één lijst met Inbox / Open / Wachten op / Ooit / Af, filter per gebied en zoeken. Open is gegroepeerd per gebied en project. In de Inbox tik je een taak aan om hem een plek te geven.
-- **Agenda**: weekstrip en dagtijdlijn met je afspraken en timeblocks voor taken. Tik op een taak en dan op een tijd, kies "Eerste vrije plek", of sleep op de laptop. Ingeplande taken komen als afspraak in een eigen agenda **Planner** in Google Agenda.
-- **Instellingen**: Google Agenda koppelen met één knop, Outlook (of een andere agenda) toevoegen met een iCal-link, en je werkdag instellen.
+- **Week**: werkweek of week op de laptop, 1 of 3 dagen op de telefoon (vegen over de dagkoppen). Op de laptop sleep je taken uit de lade de week in.
+- **Agenda bedienen** (in Vandaag en Week):
+  - **slepen** verplaatst (ook naar een andere dag)
+  - de **onderrand** rekt de duur op, de **bovenrand** verschuift het begin
+  - **slepen op een lege plek** (of dubbelklikken) maakt een nieuw blok
+  - **het rondje** in een blok vinkt af; **klikken** opent snel duur, focus, uit de agenda en details
+  - op de telefoon: **lang drukken** om op te pakken, **tikken** om te selecteren (dan verschijnen grepen om op te rekken), **tik op een lege plek** voor een nieuw blok
+  - toetsen op een geselecteerd blok: ↑/↓ 15 min, Shift+↑/↓ duur, ←/→ dag, spatie afvinken, ⌫ uit de agenda
+  - alles kan terug met **Ongedaan maken** of **⌘Z**
+- **Google Agenda**: ingeplande taken komen als afspraak in een eigen agenda **Planner** in Google (ook verplaatsen, oprekken en afvinken). Bij een afspraak zie je Deelnemen (Meet/Teams), Open in Google Agenda en "Voorbereiden als taak".
 - **Notities**: een lijst met zoeken, vastpinnen en gebieden. Notities slaan vanzelf op. Met **Dagnotitie** open je in één tik de notitie van vandaag. Regels die beginnen met `[ ]` zet je met één knop om in taken (ze worden daarna `[→]`). `- ` en `[ ] ` lopen door als lijstje.
 - **Weekreview**: hoeveel dagen je de top 3 haalde (doel 4 van 5), hoeveel dagen je afsloot met een lege inbox, per gebied wat af is, wat open staat en hoeveel focustijd erin zat, en wat blijft liggen. Je focus voor volgende week sla je op als notitie.
 - **Dag afsluiten**: inbox naar nul, vandaag afronden (de rest schuift door), en na 3× doorschuiven kiezen: doen, inplannen, ooit of schrappen.

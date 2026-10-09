@@ -1,17 +1,24 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
-import { blockInterval, freeMinutes } from "@/lib/taken/agenda";
-import { OPEN_STATUSES } from "@/lib/taken/config";
-import { addDays, formatLong, weekday } from "@/lib/taken/dates";
+import { blockInterval, freeMinutes, type Interval } from "@/lib/taken/agenda";
+import { AREA_BY_ID, OPEN_STATUSES } from "@/lib/taken/config";
+import { addDays, formatLong, formatRelative, isIsoDate, weekday } from "@/lib/taken/dates";
+import { autoSchedule, type Placement } from "@/lib/taken/plan";
 import { rankTasks } from "@/lib/taken/score";
 import type { Task } from "@/lib/taken/types";
-import { ArrowUpIcon, PlayIcon, SwapIcon } from "../_components/icons";
-import PageHeader from "../_components/PageHeader";
+import CalendarGrid, { type Ghost } from "../_components/calendar/CalendarGrid";
+import { useDragSource } from "../_components/calendar/DragLayer";
+import { blockStartOf, durationLabel, fmt, localMs, localParts, toMinutes } from "../_components/calendar/time";
+import { CalendarIcon, ChevronLeftIcon, ChevronRightIcon, PlayIcon, SearchIcon } from "../_components/icons";
+import { anchorOf, Menu, type Anchor } from "../_components/Popover";
 import QuickAdd from "../_components/QuickAdd";
-import TaskRow, { CheckButton, focusLabel, TaskMeta } from "../_components/TaskRow";
+import { CheckButton, focusLabel } from "../_components/TaskRow";
 import { eventsOn, useAgenda, useTaken } from "../_components/TakenContext";
+
+// Vandaag = dagplanner: links wat je gaat doen, rechts wanneer. Op mobiel wissel je tussen Lijst en Dag.
 
 function greeting(hour: number) {
   if (hour < 6) return "Goedenacht";
@@ -20,10 +27,12 @@ function greeting(hour: number) {
   return "Goedenavond";
 }
 
-const hhmm = (ms: number) => new Date(ms).toLocaleTimeString("nl-NL", { hour: "2-digit", minute: "2-digit" });
-const at = (date: string, time: string) => new Date(`${date}T${time}:00`).getTime();
+const VIEW_KEY = "tk-today-view";
+const isPhone = () => typeof window !== "undefined" && window.matchMedia("(max-width: 899px)").matches;
 
 export default function TodayPage() {
+  const params = useSearchParams();
+  const router = useRouter();
   const {
     tasks,
     loaded,
@@ -34,275 +43,410 @@ export default function TodayPage() {
     planAction,
     openTask,
     updateTask,
-    addRef,
+    changeTask,
     startFocus,
-    focus,
-    workday: WORKDAY,
+    notify,
+    openPalette,
+    workday,
   } = useTaken();
-  const [now, setNow] = useState(() => Date.now());
+  const initial = params?.get("datum");
+  const [date, setDate] = useState(isIsoDate(initial) ? (initial as string) : today);
+  const [view, setView] = useState<"lijst" | "dag">("lijst");
+  const [placing, setPlacing] = useState<string | null>(null);
+  const [proposal, setProposal] = useState<Placement[] | null>(null);
+  const [menu, setMenu] = useState<{ anchor: Anchor; task?: Task; reason?: string } | null>(null);
+  const [showAll, setShowAll] = useState(false);
+  const dragSource = useDragSource();
+  const hour = new Date().getHours();
+  const isToday = date === today;
+
   useEffect(() => {
-    const timer = setInterval(() => setNow(Date.now()), 60000);
-    return () => clearInterval(timer);
+    try {
+      const saved = localStorage.getItem(VIEW_KEY);
+      if (saved === "dag" || saved === "lijst") setView(saved);
+    } catch {
+      // geen opslag beschikbaar
+    }
   }, []);
-  const hour = new Date(now).getHours();
+  const switchView = (v: "lijst" | "dag") => {
+    setView(v);
+    try {
+      localStorage.setItem(VIEW_KEY, v);
+    } catch {
+      // geen opslag beschikbaar
+    }
+  };
 
   useEffect(() => {
     reloadPlan();
   }, [reloadPlan]);
 
-  const { data: agenda } = useAgenda(today, today);
+  const { data: agenda } = useAgenda(date, date);
+  const events = useMemo(() => eventsOn(agenda?.events || [], date), [agenda, date]);
   const byId = useMemo(() => new Map(tasks.map((t) => [t.id, t])), [tasks]);
-  const isActive = (t?: Task) => Boolean(t && (OPEN_STATUSES.includes(t.status) || t.status === "af"));
-  const picks = (plan?.date === today ? plan.top3 : []).filter((p) => isActive(byId.get(p.id)));
+
+  // Top 3 (alleen voor vandaag)
+  const picks = (isToday && plan?.date === today ? plan.top3 : []).filter((p) => {
+    const t = byId.get(p.id);
+    return t && (OPEN_STATUSES.includes(t.status) || t.status === "af");
+  });
   const pickIds = picks.map((p) => p.id);
-
-  const extra = useMemo(
-    () => rankTasks(tasks, today, [], [...pickIds, ...(plan?.swapped || [])]).slice(0, 5),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [tasks, today, pickIds.join(), plan?.swapped.join()]
-  );
-
-  // Een plek vrijgekomen of net een taak toegevoegd: laat de server aanvullen.
-  const openPicks = picks.filter((p) => byId.get(p.id)?.status !== "af").length;
-  useEffect(() => {
-    if (plan && !plan.closedAt && picks.length < 3 && extra.length > 0) reloadPlan();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [picks.length, extra.length]);
-
-  // Agenda van vandaag: afspraken + timeblocks, en hoeveel werktijd er nog vrij is.
-  const events = eventsOn(agenda?.events || [], today);
-  const blocks = tasks.filter((t) => t.blockStart?.startsWith(today) && t.status !== "wachten" && t.status !== "ooit");
-  const timeline = [
-    ...events.filter((e) => !e.allDay).map((e) => ({ id: e.id, start: e.start, end: e.end, title: e.title, task: null as Task | null })),
-    ...blocks.map((t) => {
-      const [start, end] = blockInterval(t) as [number, number];
-      return { id: t.id, start, end, title: t.title, task: t };
-    }),
-  ].sort((a, b) => a.start - b.start);
-  const allDay = events.filter((e) => e.allDay);
-  const isWorkday = weekday(today) >= 1 && weekday(today) <= 5;
-  const free =
-    agenda?.configured || blocks.length
-      ? freeMinutes(
-          [
-            ...events.filter((e) => e.busy).map((e) => [e.start, e.end] as [number, number]),
-            ...blocks.filter((t) => t.status !== "af").map((t) => blockInterval(t) as [number, number]),
-          ],
-          at(today, WORKDAY.start),
-          at(today, WORKDAY.end),
-          now
-        )
-      : null;
-
-  const waitingDue = tasks
-    .filter((t) => t.status === "wachten" && t.followUp && t.followUp <= today)
-    .sort((a, b) => (a.followUp || "").localeCompare(b.followUp || ""));
-  const inboxCount = tasks.filter((t) => t.status === "inbox").length;
+  // Plek over in de top 3 en er zijn (nieuwe) open taken: laat de server aanvullen.
   const openCount = tasks.filter((t) => OPEN_STATUSES.includes(t.status)).length;
-  const allDone = picks.length > 0 && openPicks === 0;
-  const isFriday = weekday(today) === 5;
+  useEffect(() => {
+    if (plan && !plan.closedAt && isToday && picks.length < 3 && openCount > picks.length) reloadPlan();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [picks.length, openCount, plan?.date]);
 
-  return (
-    <div>
-      <PageHeader eyebrow={formatLong(today)} title={`${greeting(hour)}, Justin`} />
-      <QuickAdd />
+  // Gepland op deze dag (andere dagen) en te plannen: open taken op volgorde van belang.
+  const plannedThatDay = isToday ? [] : tasks.filter((t) => t.planDate === date && OPEN_STATUSES.includes(t.status));
+  const toPlan = useMemo(
+    () =>
+      rankTasks(tasks, date, [], [...pickIds, ...(plan?.swapped || []), ...plannedThatDay.map((t) => t.id)])
+        .map((s) => s.task)
+        .filter((t) => !t.blockStart?.startsWith(date)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [tasks, date, pickIds.join(), plan?.swapped.join(), plannedThatDay.length]
+  );
+  const waitingDue = isToday ? tasks.filter((t) => t.status === "wachten" && t.followUp && t.followUp <= today) : [];
 
-      <div className="tk-meta mt-3" style={{ fontSize: 13 }}>
-        <Link href="/app/taken?lijst=inbox" className={inboxCount ? "is-strong" : ""}>
-          {inboxCount} in Inbox
-        </Link>
-        {waitingDue.length > 0 && (
-          <Link href="/app/taken?lijst=wachten" className="is-warn">
-            {waitingDue.length} nabellen
-          </Link>
-        )}
-        {free !== null && isWorkday && (
-          <span>{free > 0 ? `${focusLabel(free)} vrij tot ${WORKDAY.end}` : "Geen vrije werktijd meer"}</span>
+  // Bezette tijd en vrije werktijd op deze dag.
+  const busy: Interval[] = useMemo(
+    () => [
+      ...events.filter((e) => e.busy && !e.allDay).map((e) => [e.start, e.end] as Interval),
+      ...tasks
+        .filter((t) => t.blockStart?.startsWith(date) && t.status !== "af" && t.status !== "ooit")
+        .map((t) => blockInterval(t) as Interval),
+    ],
+    [events, tasks, date]
+  );
+  const dayStart = localMs(date, toMinutes(workday.start));
+  const dayEnd = localMs(date, toMinutes(workday.end));
+  const from = isToday ? Math.max(Date.now(), dayStart) : dayStart;
+  const free = freeMinutes(busy, dayStart, dayEnd, from);
+  const isWorkday = weekday(date) >= 1 && weekday(date) <= 5;
+
+  // ---------- Inplannen ----------
+  const firstFree = (task: Task) => {
+    const [slot] = autoSchedule([task], busy, Math.max(from, dayStart), localMs(date, 22 * 60));
+    if (!slot) return notify("Geen vrije plek meer op deze dag");
+    const p = localParts(slot.start);
+    changeTask(
+      task.id,
+      { blockStart: blockStartOf(date, p.minutes), planDate: date, estimate: task.estimate || 30, status: task.status === "inbox" ? "gepland" : task.status },
+      `${task.title} om ${fmt(p.minutes)}`
+    );
+  };
+  const schedule = (task: Task) => {
+    if (isPhone()) {
+      setPlacing(task.id);
+      switchView("dag");
+    } else firstFree(task);
+  };
+
+  // "Plan mijn dag": top 3 eerst, dan wat er nog past.
+  const planDay = () => {
+    const candidates = [
+      ...picks.map((p) => byId.get(p.id) as Task).filter((t) => t.status !== "af" && !t.blockStart?.startsWith(date)),
+      ...(isToday ? [] : plannedThatDay.filter((t) => !t.blockStart)),
+      ...toPlan,
+    ].slice(0, 8);
+    const placements = autoSchedule(candidates, busy, from, dayEnd);
+    if (!placements.length) return notify("Er past vandaag niets meer in je werkdag");
+    setProposal(placements);
+    if (isPhone()) switchView("dag");
+  };
+  const applyPlan = () => {
+    if (!proposal) return;
+    const before = proposal.map((p) => {
+      const t = byId.get(p.taskId) as Task;
+      return { id: t.id, blockStart: t.blockStart, planDate: t.planDate, status: t.status, estimate: t.estimate };
+    });
+    for (const p of proposal) {
+      const t = byId.get(p.taskId) as Task;
+      updateTask(t.id, {
+        blockStart: blockStartOf(date, localParts(p.start).minutes),
+        planDate: date,
+        estimate: Math.round((p.end - p.start) / 60000),
+        status: t.status === "inbox" ? "gepland" : t.status,
+      });
+    }
+    setProposal(null);
+    notify(proposal.length === 1 ? "1 taak ingepland" : `${proposal.length} taken ingepland`, () =>
+      before.forEach(({ id, ...rest }) => updateTask(id, rest))
+    );
+  };
+  const ghosts: Ghost[] = (proposal || []).map((p) => {
+    const s = localParts(p.start);
+    return { taskId: p.taskId, day: date, start: s.minutes, end: s.minutes + Math.round((p.end - p.start) / 60000) };
+  });
+
+  // ---------- Weergave ----------
+  const dateLabel = isToday ? "Vandaag" : formatRelative(date, today).replace(/^./, (c) => c.toUpperCase());
+  const placingTask = placing ? byId.get(placing) : null;
+
+  const row = (task: Task, opts: { num?: number; reason?: string } = {}) => {
+    const area = task.areaId ? AREA_BY_ID[task.areaId] : null;
+    const done = task.status === "af";
+    const blockedToday = task.blockStart?.startsWith(date);
+    return (
+      <div
+        key={task.id}
+        className={`tk-plan-row ${done ? "is-done" : ""} ${!done ? "is-draggable" : ""}`}
+        onPointerDown={(e) => !done && e.pointerType === "mouse" && dragSource(task)(e)}
+      >
+        {opts.num !== undefined && <span className="tk-top-num-sm">{opts.num}</span>}
+        <CheckButton task={task} />
+        <div className="tk-row-body" onClick={() => openTask(task.id)}>
+          <div className="tk-row-title" style={done ? { color: "var(--faint)", textDecoration: "line-through" } : undefined}>
+            {task.title}
+          </div>
+          <div className="tk-meta">
+            {blockedToday && <span className="is-strong">{task.blockStart!.slice(11, 16)}</span>}
+            <span>{durationLabel(task.estimate || 30)}</span>
+            {area && (
+              <span>
+                <span className="tk-dot" style={{ background: area.color }} />
+                {area.short}
+              </span>
+            )}
+            {task.deadline && <span className={task.deadline <= today ? "is-danger" : ""}>{formatRelative(task.deadline, today)}</span>}
+          </div>
+          {opts.reason && <div className="tk-reason">{opts.reason}</div>}
+        </div>
+        {!done && (
+          <div className="tk-row-actions">
+            {!blockedToday && (
+              <button type="button" className="tk-icon-btn" onClick={() => schedule(task)} aria-label="Inplannen" title="Inplannen">
+                <CalendarIcon />
+              </button>
+            )}
+            <button type="button" className="tk-icon-btn" onClick={() => startFocus(task.id, 25)} aria-label="Focus" title="Focus 25 min">
+              <PlayIcon />
+            </button>
+            <button
+              type="button"
+              className="tk-icon-btn"
+              aria-label="Meer"
+              onClick={(e) => setMenu({ anchor: anchorOf(e.currentTarget), task, reason: opts.reason })}
+            >
+              ⋯
+            </button>
+          </div>
         )}
       </div>
+    );
+  };
 
-      {error && (
-        <div className="mt-4 text-sm" style={{ color: "var(--danger)" }}>
-          {error}
-        </div>
-      )}
+  const visibleToPlan = showAll ? toPlan : toPlan.slice(0, 6);
 
-      <section className="tk-section">
-        <div className="tk-section-head">
-          <h2 className="tk-h2">Top 3</h2>
-          {plan && picks.length > 0 && !plan.closedAt && (
-            <button type="button" className="tk-btn tk-btn-quiet tk-btn-sm" onClick={() => planAction("recompute")}>
-              Opnieuw kiezen
-            </button>
-          )}
-        </div>
-        {!loaded || !plan ? (
-          <div className="tk-empty">Even je dag op een rij zetten…</div>
-        ) : picks.length === 0 ? (
-          <div className="tk-empty">
-            {openCount === 0 ? (
-              <>
-                <div style={{ fontSize: 16, fontWeight: 550, color: "var(--text)" }}>Nog niks te doen</div>
-                <p className="mt-1">Typ hierboven je eerste taak, bijvoorbeeld</p>
-                <p className="mt-1" style={{ color: "var(--muted)" }}>
-                  Offerte Jansen vrijdag, Appèl, half uur
-                </p>
-                <button type="button" className="tk-btn mt-4" onClick={() => addRef.current?.focus()}>
-                  Taak toevoegen
-                </button>
-              </>
-            ) : (
-              "Geen kandidaten meer voor vandaag."
-            )}
-          </div>
-        ) : (
-          <div>
-            {picks.map((p, i) => {
-              const task = byId.get(p.id) as Task;
-              const done = task.status === "af";
-              const focusing = focus?.taskId === task.id;
-              return (
-                <div key={p.id} className={`tk-top ${done ? "is-done" : ""}`}>
-                  <span className="tk-top-num">{i + 1}</span>
-                  <div className="min-w-0 flex-1 cursor-pointer" onClick={() => openTask(task.id)}>
-                    <div className="tk-top-title">{task.title}</div>
-                    <div className="tk-top-reason">{p.reason}</div>
-                    <TaskMeta task={task} />
-                  </div>
-                  <div className="tk-top-actions">
-                    {!done && (
-                      <button
-                        type="button"
-                        className={`tk-icon-btn ${focusing ? "is-on" : ""}`}
-                        onClick={() => startFocus(task.id, 25)}
-                        aria-label="Focus 25 minuten"
-                        title="Focus 25 min"
-                      >
-                        <PlayIcon />
-                      </button>
-                    )}
-                    {!done && !plan?.closedAt && (
-                      <button
-                        type="button"
-                        className="tk-icon-btn"
-                        onClick={() => planAction("swap", task.id)}
-                        aria-label="Wissel deze taak"
-                        title="Wissel"
-                      >
-                        <SwapIcon />
-                      </button>
-                    )}
-                    <div className="ml-1 mt-1.5">
-                      <CheckButton task={task} />
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-            {allDone && <p className="tk-muted mt-3 text-sm">Top 3 af. Alles hieronder is bonus.</p>}
-          </div>
-        )}
-      </section>
+  const list = (
+    <div>
+      <QuickAdd />
+      {error && <div className="mt-3 text-sm" style={{ color: "var(--danger)" }}>{error}</div>}
 
-      {(timeline.length > 0 || allDay.length > 0 || agenda?.configured) && (
-        <section className="tk-section">
+      {isToday && (
+        <section className="tk-section" style={{ marginTop: 20 }}>
           <div className="tk-section-head">
-            <h2 className="tk-h2">Agenda</h2>
-            <Link href="/app/agenda" className="tk-btn tk-btn-quiet tk-btn-sm">
-              Plannen
-            </Link>
+            <h2 className="tk-h2">Top 3</h2>
           </div>
-          {allDay.map((e) => (
-            <div key={e.id} className="tk-agenda-row">
-              <span className="tk-time">hele dag</span>
-              <span>{e.title}</span>
-            </div>
-          ))}
-          {timeline.length === 0 && allDay.length === 0 && <div className="tk-muted py-2 text-sm">Geen afspraken vandaag.</div>}
-          {timeline.map((item) => (
-            <div
-              key={item.id}
-              className={`tk-agenda-row ${item.end < now || item.task?.status === "af" ? "is-past" : ""}`}
-              onClick={item.task ? () => openTask(item.task!.id) : undefined}
-              style={item.task ? { cursor: "pointer" } : undefined}
-            >
-              <span className="tk-time">
-                {hhmm(item.start)}–{hhmm(item.end)}
-              </span>
-              <span className={item.task ? "font-medium" : ""}>
-                {item.task ? "▪ " : ""}
-                {item.title}
-              </span>
-            </div>
-          ))}
+          {!loaded || !plan ? (
+            <div className="tk-empty">Even je dag op een rij zetten…</div>
+          ) : picks.length === 0 ? (
+            <div className="tk-empty">Nog niks te doen. Typ hierboven je eerste taak.</div>
+          ) : (
+            <div>{picks.map((p, i) => row(byId.get(p.id) as Task, { num: i + 1, reason: p.reason }))}</div>
+          )}
         </section>
       )}
 
-      {extra.length > 0 && (
-        <section className="tk-section">
+      {plannedThatDay.length > 0 && (
+        <section className="tk-section" style={{ marginTop: 20 }}>
+          <h2 className="tk-h2 mb-1">Gepland op deze dag</h2>
+          <div>{plannedThatDay.map((t) => row(t))}</div>
+        </section>
+      )}
+
+      {toPlan.length > 0 && (
+        <section className="tk-section" style={{ marginTop: 24 }}>
           <div className="tk-section-head">
-            <h2 className="tk-h2">Als er tijd over is</h2>
+            <h2 className="tk-h2">Te plannen</h2>
+            <span className="tk-faint tk-desktop-only text-xs">sleep naar de agenda</span>
           </div>
-          <div className="tk-list">
-            {extra.map(({ task }) => (
-              <TaskRow
-                key={task.id}
-                task={task}
-                actions={
-                  <button
-                    type="button"
-                    className="tk-icon-btn"
-                    onClick={() => planAction("promote", task.id)}
-                    aria-label="Naar de top 3"
-                    title="Naar de top 3"
-                  >
-                    <ArrowUpIcon />
-                  </button>
-                }
-              />
-            ))}
-          </div>
+          <div>{visibleToPlan.map((t) => row(t))}</div>
+          {toPlan.length > 6 && (
+            <button type="button" className="tk-btn tk-btn-quiet tk-btn-sm mt-1" onClick={() => setShowAll((v) => !v)}>
+              {showAll ? "Minder tonen" : `Nog ${toPlan.length - 6} tonen`}
+            </button>
+          )}
         </section>
       )}
 
       {waitingDue.length > 0 && (
-        <section className="tk-section">
-          <div className="tk-section-head">
-            <h2 className="tk-h2">Vandaag nabellen of nasturen</h2>
-          </div>
-          <div className="tk-list">
-            {waitingDue.map((task) => (
-              <TaskRow key={task.id} task={task}>
-                <div className="flex gap-1.5">
-                  <button
-                    type="button"
-                    className="tk-btn tk-btn-ghost tk-btn-sm"
-                    onClick={() => updateTask(task.id, { followUp: addDays(today, 3) })}
-                  >
-                    Gedaan, over 3 dagen weer
-                  </button>
-                  <button
-                    type="button"
-                    className="tk-btn tk-btn-quiet tk-btn-sm"
-                    onClick={() => updateTask(task.id, { status: "gepland", followUp: null })}
-                  >
-                    Binnen
-                  </button>
+        <section className="tk-section" style={{ marginTop: 24 }}>
+          <h2 className="tk-h2 mb-1">Vandaag nabellen</h2>
+          {waitingDue.map((task) => (
+            <div key={task.id} className="tk-plan-row">
+              <CheckButton task={task} />
+              <div className="tk-row-body" onClick={() => openTask(task.id)}>
+                <div className="tk-row-title">{task.title}</div>
+                <div className="tk-meta">
+                  <span>wacht op {task.waitingOn || "iemand"}</span>
                 </div>
-              </TaskRow>
-            ))}
-          </div>
+              </div>
+              <div className="tk-row-actions" style={{ opacity: 1 }}>
+                <button
+                  type="button"
+                  className="tk-btn tk-btn-quiet tk-btn-sm"
+                  onClick={() => changeTask(task.id, { followUp: addDays(today, 3) }, "Over 3 dagen weer")}
+                >
+                  Gedaan
+                </button>
+              </div>
+            </div>
+          ))}
         </section>
       )}
+    </div>
+  );
 
-      <div className="mt-10 flex flex-wrap justify-center gap-2">
-        <Link href="/app/afsluiten" className={`tk-btn ${hour >= 16 && !plan?.closedAt ? "" : "tk-btn-ghost"}`}>
-          {plan?.closedAt ? "Dag is afgesloten" : "Dag afsluiten"}
-        </Link>
-        <Link href="/app/review" className={`tk-btn ${isFriday && hour >= 14 ? "" : "tk-btn-ghost"}`}>
-          Weekreview
-        </Link>
+  const grid = (
+    <div>
+      {placingTask && (
+        <div className="tk-banner mb-2">
+          <span className="min-w-0 flex-1">
+            Tik op een tijd voor <strong>{placingTask.title}</strong>
+          </span>
+          <button
+            type="button"
+            className="tk-btn tk-btn-ghost tk-btn-sm"
+            onClick={() => {
+              firstFree(placingTask);
+              setPlacing(null);
+            }}
+          >
+            Eerste vrije plek
+          </button>
+          <button type="button" className="tk-btn tk-btn-ghost tk-btn-sm" onClick={() => setPlacing(null)}>
+            Annuleer
+          </button>
+        </div>
+      )}
+      {proposal && (
+        <div className="tk-banner mb-2">
+          <span className="min-w-0 flex-1">
+            Voorstel: {proposal.length} {proposal.length === 1 ? "taak" : "taken"} in je vrije tijd
+          </span>
+          <button type="button" className="tk-btn tk-btn-ghost tk-btn-sm" onClick={applyPlan}>
+            Toepassen
+          </button>
+          <button type="button" className="tk-btn tk-btn-ghost tk-btn-sm" onClick={() => setProposal(null)}>
+            Annuleren
+          </button>
+        </div>
+      )}
+      <CalendarGrid
+        days={[date]}
+        events={events}
+        hourHeight={isPhone() ? 44 : 48}
+        placingTaskId={placing}
+        onPlaced={() => setPlacing(null)}
+        ghosts={ghosts}
+        layoutKey={`${Boolean(placingTask)}-${Boolean(proposal)}-${view}`}
+      />
+    </div>
+  );
+
+  return (
+    <div>
+      <header className="mb-4 flex flex-wrap items-end justify-between gap-3">
+        <div className="min-w-0">
+          <div className="tk-eyebrow">{isToday ? `${greeting(hour)}, Justin` : formatLong(date).replace(/^./, (c) => c.toUpperCase())}</div>
+          <div className="flex items-center gap-1">
+            <h1 className="tk-h1">{isToday ? formatLong(date).replace(/^./, (c) => c.toUpperCase()) : dateLabel}</h1>
+          </div>
+          <div className="tk-meta mt-1" style={{ fontSize: 13 }}>
+            {isWorkday && <span>{free > 0 ? `${focusLabel(free)} vrij` : "werkdag zit vol"}</span>}
+            {tasks.some((t) => t.status === "inbox") && (
+              <Link href="/app/taken?lijst=inbox">{tasks.filter((t) => t.status === "inbox").length} in Inbox</Link>
+            )}
+          </div>
+        </div>
+        <div className="flex items-center gap-1">
+          <button type="button" className="tk-icon-btn" onClick={() => setDate(addDays(date, -1))} aria-label="Vorige dag">
+            <ChevronLeftIcon />
+          </button>
+          {!isToday && (
+            <button type="button" className="tk-btn tk-btn-ghost tk-btn-sm" onClick={() => setDate(today)}>
+              Vandaag
+            </button>
+          )}
+          <button type="button" className="tk-icon-btn" onClick={() => setDate(addDays(date, 1))} aria-label="Volgende dag">
+            <ChevronRightIcon />
+          </button>
+          <button type="button" className="tk-btn tk-btn-sm ml-1" onClick={planDay} disabled={Boolean(proposal)}>
+            Plan mijn dag
+          </button>
+          <button
+            type="button"
+            className="tk-icon-btn"
+            aria-label="Meer"
+            onClick={(e) => setMenu({ anchor: anchorOf(e.currentTarget) })}
+          >
+            ⋯
+          </button>
+          <button type="button" className="tk-icon-btn tk-mobile-only" onClick={() => openPalette("search")} aria-label="Zoeken">
+            <SearchIcon />
+          </button>
+        </div>
+      </header>
+
+      <div className="tk-mobile-only mb-3">
+        <div className="tk-seg" style={{ width: "100%" }}>
+          <button type="button" style={{ flex: 1, justifyContent: "center" }} aria-pressed={view === "lijst"} onClick={() => switchView("lijst")}>
+            Lijst
+          </button>
+          <button type="button" style={{ flex: 1, justifyContent: "center" }} aria-pressed={view === "dag"} onClick={() => switchView("dag")}>
+            Dag
+          </button>
+        </div>
       </div>
+
+      <div className="tk-planner">
+        <div className={`tk-planner-side ${view === "dag" ? "tk-desktop-only" : ""}`}>{list}</div>
+        <div className={view === "lijst" ? "tk-desktop-only" : ""}>{grid}</div>
+      </div>
+
+      {menu && (
+        <Menu
+          anchor={menu.anchor}
+          onClose={() => setMenu(null)}
+          items={
+            menu.task
+              ? [
+                  ...(menu.reason ? [{ label: "Waarom deze?", hint: "", onSelect: () => notify(menu.reason as string) }] : []),
+                  { label: "Inplannen", onSelect: () => schedule(menu.task as Task) },
+                  {
+                    label: "Naar morgen",
+                    onSelect: () =>
+                      changeTask((menu.task as Task).id, { planDate: addDays(today, 1), blockStart: null }, "Naar morgen verplaatst"),
+                  },
+                  ...(pickIds.includes(menu.task.id) && !plan?.closedAt
+                    ? [{ label: "Wissel uit top 3", onSelect: () => planAction("swap", (menu.task as Task).id) }]
+                    : isToday && !plan?.closedAt
+                    ? [{ label: "Naar de top 3", onSelect: () => planAction("promote", (menu.task as Task).id) }]
+                    : []),
+                  { label: "Details", onSelect: () => openTask((menu.task as Task).id) },
+                ]
+              : [
+                  ...(isToday && plan && !plan.closedAt ? [{ label: "Top 3 opnieuw kiezen", onSelect: () => planAction("recompute") }] : []),
+                  { label: "Dag afsluiten", onSelect: () => router.push("/app/afsluiten") },
+                  { label: "Weekreview", onSelect: () => router.push("/app/review") },
+                  { label: "Instellingen", onSelect: () => router.push("/app/instellingen") },
+                ]
+          }
+        />
+      )}
     </div>
   );
 }

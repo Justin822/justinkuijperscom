@@ -1,4 +1,4 @@
-import { DEFAULT_TZ } from "./ics";
+import { DEFAULT_TZ, meetingLink } from "./ics";
 import { getSettings, updateSettings } from "./store";
 import type { CalendarEvent, GoogleCalendar, GoogleLink, Task } from "./types";
 
@@ -228,8 +228,15 @@ function toEvent(calendar: GoogleCalendar, e: any): CalendarEvent | null {
     startDate: allDay ? e.start.date : null,
     endDate: allDay ? e.end?.date || null : null,
     busy: !allDay && e.transparency !== "transparent",
+    color: calendar.color,
+    link: e.htmlLink || null,
+    meetUrl:
+      e.hangoutLink ||
+      e.conferenceData?.entryPoints?.find((p: any) => p.entryPointType === "video")?.uri ||
+      meetingLink(`${e.location || ""} ${e.description || ""}`),
   };
 }
+
 
 /** Afspraken uit de gekozen Google-agenda's tussen twee tijdstippen. */
 export async function googleEvents(from: number, to: number): Promise<{ events: CalendarEvent[]; errors: string[] }> {

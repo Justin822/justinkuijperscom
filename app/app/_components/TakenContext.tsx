@@ -39,6 +39,10 @@ type Ctx = {
   openTask: (id: string | null) => void;
   toast: Toast | null;
   notify: (text: string, undo?: () => void) => void;
+  /** Laatste actie met "Ongedaan maken" terugdraaien (⌘Z). */
+  undoLast: () => void;
+  /** Taak wijzigen met een melding die je ongedaan kunt maken. */
+  changeTask: (id: string, patch: Partial<Task>, message: string) => void;
   addRef: React.MutableRefObject<HTMLInputElement | null>;
   plan: DayPlan | null;
   planAction: (action: "swap" | "promote" | "recompute", id?: string) => Promise<void>;
@@ -116,10 +120,28 @@ export function TakenProvider({ children }: { children: React.ReactNode }) {
   const notesRef = useRef<Note[]>([]);
   notesRef.current = notes;
 
+  // Acties die je kunt terugdraaien: via de knop in de melding of met ⌘Z.
+  const undoStack = useRef<(() => void)[]>([]);
   const notify = useCallback((text: string, undo?: () => void) => {
     const id = Date.now();
-    setToast({ id, text, undo });
+    let wrapped: (() => void) | undefined;
+    if (undo) {
+      let used = false;
+      wrapped = () => {
+        if (used) return;
+        used = true;
+        undoStack.current = undoStack.current.filter((u) => u !== wrapped);
+        setToast((t) => (t?.id === id ? null : t));
+        undo();
+      };
+      undoStack.current = [...undoStack.current.slice(-19), wrapped];
+    }
+    setToast({ id, text, undo: wrapped });
     setTimeout(() => setToast((t) => (t?.id === id ? null : t)), undo ? 5000 : 2800);
+  }, []);
+  const undoLast = useCallback(() => {
+    const last = undoStack.current[undoStack.current.length - 1];
+    if (last) last();
   }, []);
 
   const reload = useCallback(async () => {
@@ -181,14 +203,15 @@ export function TakenProvider({ children }: { children: React.ReactNode }) {
 
   const addTasks = useCallback(
     async (inputs: Partial<Task>[]) => {
-      const data = await api<{ tasks: Task[] }>("/api/taken/tasks", {
+      const data = await api<{ tasks: Task[]; sync?: string }>("/api/taken/tasks", {
         method: "POST",
         body: JSON.stringify({ tasks: inputs }),
       });
       mergeTasks(data.tasks);
+      if (data.sync === "fout") notify("Opgeslagen, maar niet in Google Agenda gezet");
       return data.tasks;
     },
-    [mergeTasks]
+    [mergeTasks, notify]
   );
 
   const updateTask = useCallback(
@@ -211,6 +234,17 @@ export function TakenProvider({ children }: { children: React.ReactNode }) {
       }
     },
     [mergeTasks, notify]
+  );
+
+  const changeTask = useCallback(
+    (id: string, patch: Partial<Task>, message: string) => {
+      const before = tasksRef.current.find((t) => t.id === id);
+      if (!before) return;
+      const previous = Object.fromEntries(Object.keys(patch).map((k) => [k, (before as any)[k]])) as Partial<Task>;
+      updateTask(id, patch);
+      notify(message, () => updateTask(id, previous));
+    },
+    [updateTask, notify]
   );
 
   const removeTask = useCallback(
@@ -355,6 +389,8 @@ export function TakenProvider({ children }: { children: React.ReactNode }) {
       openTask: setEditing,
       toast,
       notify,
+      undoLast,
+      changeTask,
       addRef,
       plan,
       planAction,
@@ -389,6 +425,8 @@ export function TakenProvider({ children }: { children: React.ReactNode }) {
       editing,
       toast,
       notify,
+      undoLast,
+      changeTask,
       plan,
       planAction,
       reloadPlan,
