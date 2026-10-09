@@ -87,7 +87,7 @@ export default function ClosePage() {
       {step === 0 && (
         <>
           <p className="tk-muted text-sm">Geef alles in je Inbox een plek. Dan begin je morgen met een schone lei.</p>
-          <div className="tk-card tk-list px-3">
+          <div className="tk-list">
             {inbox.length === 0 ? (
               <div className="tk-empty">Inbox is leeg.</div>
             ) : (
@@ -109,7 +109,7 @@ export default function ClosePage() {
           <p className="tk-muted text-sm">
             Vink af wat af is. De rest schuift door naar morgen en telt één keer extra mee.
           </p>
-          <div className="tk-card tk-list px-3">
+          <div className="tk-list">
             {todays.length === 0 ? (
               <div className="tk-empty">Er stond vandaag niets ingepland.</div>
             ) : (
@@ -150,7 +150,7 @@ export default function ClosePage() {
               : "Geen taken die te vaak zijn doorgeschoven."}
           </p>
           {stuck.length > 0 && (
-            <div className="tk-card tk-list px-3">
+            <div className="tk-list">
               {stuck.map((task) => (
                 <TaskRow key={task.id} task={task}>
                   <div className="flex flex-wrap items-center gap-1.5">

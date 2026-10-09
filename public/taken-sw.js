@@ -2,7 +2,7 @@
 // pagina's zien als je even geen verbinding hebt. De API wordt nooit gecachet.
 // Pushmeldingen komen hier later bij.
 
-const CACHE = "taken-v1";
+const CACHE = "planner-v2";
 
 self.addEventListener("install", () => self.skipWaiting());
 

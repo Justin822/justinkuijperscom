@@ -1,16 +1,28 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
-import { localToday } from "@/lib/taken/dates";
-import type { DayPlan, Task } from "@/lib/taken/types";
+import { addDays, localToday } from "@/lib/taken/dates";
+import type { CalendarEvent, DayPlan, Note, Task } from "@/lib/taken/types";
 
-// Alle taken staan in de browser in één lijst; wijzigingen zijn direct zichtbaar
+// Alle taken en notities staan in de browser; wijzigingen zijn direct zichtbaar
 // en gaan op de achtergrond naar de server (bij een fout terug naar de oude stand).
 
 type Toast = { id: number; text: string; undo?: () => void };
 
+export type Focus = {
+  taskId: string;
+  minutes: number;
+  /** Begin van het lopende stuk (ms), null als gepauzeerd. */
+  runningSince: number | null;
+  /** Al gewerkte tijd vóór het lopende stuk (ms). */
+  elapsed: number;
+};
+
+type PaletteMode = "search" | "add";
+
 type Ctx = {
   tasks: Task[];
+  notes: Note[];
   loaded: boolean;
   error: string | null;
   today: string;
@@ -19,6 +31,9 @@ type Ctx = {
   removeTask: (id: string) => Promise<void>;
   mergeTasks: (tasks: Task[]) => void;
   reload: () => Promise<void>;
+  createNote: (input: Partial<Note>) => Promise<Note>;
+  updateNote: (id: string, patch: Partial<Note>) => Promise<void>;
+  removeNote: (id: string) => Promise<void>;
   editing: string | null;
   openTask: (id: string | null) => void;
   toast: Toast | null;
@@ -27,6 +42,15 @@ type Ctx = {
   plan: DayPlan | null;
   planAction: (action: "swap" | "promote" | "recompute", id?: string) => Promise<void>;
   reloadPlan: () => Promise<void>;
+  focus: Focus | null;
+  startFocus: (taskId: string, minutes?: number) => void;
+  pauseFocus: () => void;
+  resumeFocus: () => void;
+  stopFocus: (done?: boolean) => void;
+  focusOpen: boolean;
+  setFocusOpen: (open: boolean) => void;
+  palette: PaletteMode | null;
+  openPalette: (mode?: PaletteMode | null) => void;
 };
 
 const TakenContext = createContext<Ctx | null>(null);
@@ -46,28 +70,61 @@ export async function api<T = any>(path: string, init?: RequestInit): Promise<T>
   return data;
 }
 
+const FOCUS_KEY = "tk-focus";
+export const focusElapsed = (f: Focus, now = Date.now()) => f.elapsed + (f.runningSince ? now - f.runningSince : 0);
+
+function readFocus(): Focus | null {
+  try {
+    const raw = localStorage.getItem(FOCUS_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+function writeFocus(f: Focus | null) {
+  try {
+    if (f) localStorage.setItem(FOCUS_KEY, JSON.stringify(f));
+    else localStorage.removeItem(FOCUS_KEY);
+  } catch {
+    // privévenster: timer werkt, maar overleeft geen herlaadbeurt
+  }
+}
+
 export function TakenProvider({ children }: { children: React.ReactNode }) {
   const [tasks, setTasks] = useState<Task[]>([]);
+  const [notes, setNotes] = useState<Note[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [today, setToday] = useState(localToday);
+  const [today, setToday] = useState(() => localToday());
   const [editing, setEditing] = useState<string | null>(null);
   const [toast, setToast] = useState<Toast | null>(null);
   const [plan, setPlan] = useState<DayPlan | null>(null);
+  const [focus, setFocus] = useState<Focus | null>(null);
+  const [focusOpen, setFocusOpen] = useState(false);
+  const [palette, setPalette] = useState<PaletteMode | null>(null);
+  // Alleen in de browser renderen: datums en tijden hangen af van de tijdzone van je telefoon,
+  // die de server (UTC) niet kent. Zo komen server-HTML en browser nooit uit elkaar.
+  const [mounted, setMounted] = useState(false);
   const addRef = useRef<HTMLInputElement | null>(null);
   const tasksRef = useRef<Task[]>([]);
   tasksRef.current = tasks;
+  const notesRef = useRef<Note[]>([]);
+  notesRef.current = notes;
 
   const notify = useCallback((text: string, undo?: () => void) => {
     const id = Date.now();
     setToast({ id, text, undo });
-    setTimeout(() => setToast((t) => (t?.id === id ? null : t)), undo ? 5000 : 3000);
+    setTimeout(() => setToast((t) => (t?.id === id ? null : t)), undo ? 5000 : 2800);
   }, []);
 
   const reload = useCallback(async () => {
     try {
-      const data = await api<{ tasks: Task[] }>("/api/taken/tasks");
-      setTasks(data.tasks);
+      const [t, n] = await Promise.all([
+        api<{ tasks: Task[] }>("/api/taken/tasks"),
+        api<{ notes: Note[] }>("/api/taken/notes"),
+      ]);
+      setTasks(t.tasks);
+      setNotes(n.notes);
       setError(null);
     } catch (err: any) {
       setError(err.message);
@@ -86,7 +143,9 @@ export function TakenProvider({ children }: { children: React.ReactNode }) {
   }, [today, notify]);
 
   useEffect(() => {
+    setMounted(true);
     reload();
+    setFocus(readFocus());
   }, [reload]);
 
   // Een open tabblad of app springt na middernacht vanzelf naar de nieuwe dag.
@@ -133,11 +192,11 @@ export function TakenProvider({ children }: { children: React.ReactNode }) {
       if (patch.status === "af" && before.status !== "af") optimistic.doneAt = Date.now();
       mergeTasks([optimistic]);
       try {
-        const data = await api<{ task: Task }>(`/api/taken/tasks/${id}`, {
+        const data = await api<{ task: Task; created?: Task[] }>(`/api/taken/tasks/${id}`, {
           method: "PATCH",
-          body: JSON.stringify(patch),
+          body: JSON.stringify({ ...patch, today: localToday() }),
         });
-        mergeTasks([data.task]);
+        mergeTasks([data.task, ...(data.created || [])]);
       } catch (err: any) {
         mergeTasks([before]);
         notify(err.message);
@@ -160,6 +219,44 @@ export function TakenProvider({ children }: { children: React.ReactNode }) {
     [mergeTasks, notify]
   );
 
+  const createNote = useCallback(async (input: Partial<Note>) => {
+    const data = await api<{ note: Note }>("/api/taken/notes", { method: "POST", body: JSON.stringify(input) });
+    setNotes((list) => [data.note, ...list]);
+    return data.note;
+  }, []);
+
+  const updateNote = useCallback(
+    async (id: string, patch: Partial<Note>) => {
+      setNotes((list) => list.map((n) => (n.id === id ? { ...n, ...patch, updatedAt: Date.now() } : n)));
+      try {
+        const data = await api<{ note: Note }>(`/api/taken/notes/${id}`, {
+          method: "PATCH",
+          body: JSON.stringify(patch),
+        });
+        // Alleen metadata overnemen; de tekst in de editor kan intussen verder zijn.
+        setNotes((list) => list.map((n) => (n.id === id ? { ...n, updatedAt: data.note.updatedAt } : n)));
+      } catch (err: any) {
+        notify(err.message);
+        throw err;
+      }
+    },
+    [notify]
+  );
+
+  const removeNote = useCallback(
+    async (id: string) => {
+      const before = notesRef.current.find((n) => n.id === id);
+      setNotes((list) => list.filter((n) => n.id !== id));
+      try {
+        await api(`/api/taken/notes/${id}`, { method: "DELETE" });
+      } catch (err: any) {
+        if (before) setNotes((list) => [before, ...list]);
+        notify(err.message);
+      }
+    },
+    [notify]
+  );
+
   const planAction = useCallback(
     async (action: "swap" | "promote" | "recompute", id?: string) => {
       try {
@@ -175,9 +272,60 @@ export function TakenProvider({ children }: { children: React.ReactNode }) {
     [today, notify]
   );
 
+  // ----- Focus-timer -----
+  const saveFocus = useCallback((f: Focus | null) => {
+    setFocus(f);
+    writeFocus(f);
+  }, []);
+
+  const logFocus = useCallback(
+    (f: Focus, done: boolean) => {
+      const minutes = Math.round(focusElapsed(f) / 60000);
+      const task = tasksRef.current.find((t) => t.id === f.taskId);
+      if (!task) return;
+      const patch: Partial<Task> = {};
+      if (minutes > 0) patch.focusMinutes = (task.focusMinutes || 0) + minutes;
+      if (done) patch.status = "af";
+      if (Object.keys(patch).length) updateTask(task.id, patch);
+      if (minutes > 0) notify(`${minutes} min gefocust op ${task.title}`);
+    },
+    [updateTask, notify]
+  );
+
+  const startFocus = useCallback(
+    (taskId: string, minutes = 25) => {
+      if (focus) logFocus(focus, false);
+      saveFocus({ taskId, minutes, runningSince: Date.now(), elapsed: 0 });
+      setFocusOpen(true);
+      try {
+        if ("Notification" in window && Notification.permission === "default") Notification.requestPermission();
+      } catch {
+        // niet ondersteund
+      }
+    },
+    [focus, logFocus, saveFocus]
+  );
+  const pauseFocus = useCallback(() => {
+    if (focus?.runningSince) saveFocus({ ...focus, elapsed: focusElapsed(focus), runningSince: null });
+  }, [focus, saveFocus]);
+  const resumeFocus = useCallback(() => {
+    if (focus && !focus.runningSince) saveFocus({ ...focus, runningSince: Date.now() });
+  }, [focus, saveFocus]);
+  const stopFocus = useCallback(
+    (done = false) => {
+      if (focus) logFocus(focus, done);
+      saveFocus(null);
+      setFocusOpen(false);
+    },
+    [focus, logFocus, saveFocus]
+  );
+
+  const openPalette = useCallback((mode: PaletteMode | null = "search") => setPalette(mode), []);
+
   const value = useMemo<Ctx>(
     () => ({
       tasks,
+      notes,
       loaded,
       error,
       today,
@@ -186,6 +334,9 @@ export function TakenProvider({ children }: { children: React.ReactNode }) {
       removeTask,
       mergeTasks,
       reload,
+      createNote,
+      updateNote,
+      removeNote,
       editing,
       openTask: setEditing,
       toast,
@@ -194,15 +345,92 @@ export function TakenProvider({ children }: { children: React.ReactNode }) {
       plan,
       planAction,
       reloadPlan,
+      focus,
+      startFocus,
+      pauseFocus,
+      resumeFocus,
+      stopFocus,
+      focusOpen,
+      setFocusOpen,
+      palette,
+      openPalette,
     }),
-    [tasks, loaded, error, today, addTasks, updateTask, removeTask, mergeTasks, reload, editing, toast, notify, plan, planAction, reloadPlan]
+    [
+      tasks,
+      notes,
+      loaded,
+      error,
+      today,
+      addTasks,
+      updateTask,
+      removeTask,
+      mergeTasks,
+      reload,
+      createNote,
+      updateNote,
+      removeNote,
+      editing,
+      toast,
+      notify,
+      plan,
+      planAction,
+      reloadPlan,
+      focus,
+      startFocus,
+      pauseFocus,
+      resumeFocus,
+      stopFocus,
+      focusOpen,
+      palette,
+      openPalette,
+    ]
   );
 
-  return <TakenContext.Provider value={value}>{children}</TakenContext.Provider>;
+  return <TakenContext.Provider value={value}>{mounted ? children : null}</TakenContext.Provider>;
 }
 
 export function useTaken() {
   const ctx = useContext(TakenContext);
   if (!ctx) throw new Error("useTaken buiten TakenProvider");
   return ctx;
+}
+
+// ----- Agenda -----
+const agendaCache = new Map<string, { at: number; data: AgendaData }>();
+export type AgendaData = { events: CalendarEvent[]; configured: boolean; errors: string[] };
+
+/** Afspraken tussen twee datums; houdt 2 minuten een cache vast zodat wisselen tussen schermen snel is. */
+export function useAgenda(from: string, to: string) {
+  const key = `${from}|${to}`;
+  const [data, setData] = useState<AgendaData | null>(() => agendaCache.get(key)?.data || null);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    const hit = agendaCache.get(key);
+    if (hit) setData(hit.data);
+    if (hit && Date.now() - hit.at < 2 * 60 * 1000) return;
+    let cancelled = false;
+    setLoading(true);
+    api<AgendaData>(`/api/taken/agenda?from=${from}&to=${to}`)
+      .then((d) => {
+        agendaCache.set(key, { at: Date.now(), data: d });
+        if (!cancelled) setData(d);
+      })
+      .catch(() => !cancelled && setData((d) => d || { events: [], configured: false, errors: ["Agenda niet bereikbaar"] }))
+      .finally(() => !cancelled && setLoading(false));
+    return () => {
+      cancelled = true;
+    };
+  }, [key, from, to]);
+
+  return { data, loading };
+}
+
+/** Afspraken die (deels) op een lokale dag vallen. */
+export function eventsOn(events: CalendarEvent[], date: string) {
+  const start = new Date(`${date}T00:00:00`).getTime();
+  const end = new Date(`${addDays(date, 1)}T00:00:00`).getTime();
+  return events.filter((e) =>
+    e.allDay ? (e.startDate as string) <= date && date < (e.endDate as string) : e.end > start && e.start < end
+  );
 }

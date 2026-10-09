@@ -15,12 +15,8 @@ export default function InboxActions({ task }: { task: Task }) {
       <AreaPills value={task.areaId} onPick={(areaId) => updateTask(task.id, { areaId, status: "gepland" })} />
       <div className="flex flex-wrap gap-1.5">
         {area && (
-          <button
-            type="button"
-            className="tk-btn tk-btn-sm"
-            onClick={() => updateTask(task.id, { status: "gepland" })}
-          >
-            ✓ In {area.short}
+          <button type="button" className="tk-btn tk-btn-sm" onClick={() => updateTask(task.id, { status: "gepland" })}>
+            In {area.short}
           </button>
         )}
         <button
@@ -49,7 +45,7 @@ export default function InboxActions({ task }: { task: Task }) {
         </button>
         <button
           type="button"
-          className="tk-btn tk-btn-ghost tk-btn-sm"
+          className="tk-btn tk-btn-quiet tk-btn-sm"
           onClick={() => {
             removeTask(task.id);
             const { id: _id, createdAt, updatedAt, doneAt, ...copy } = task;

@@ -1,12 +1,13 @@
 import { AREAS, estimateLabel } from "./config";
 import { addDays, formatRelative, makeDate, MONTHS, nextWeekday, weekday, WEEKDAYS } from "./dates";
-import type { AreaId, Impact, Status } from "./types";
+import { firstDate, repeatLabel } from "./repeat";
+import type { AreaId, Impact, Repeat, Status } from "./types";
 
 // Regelgebaseerde parser voor Nederlandse invoer, zonder AI.
 // "Offerte Jansen vrijdag, Appèl, half uur" → titel, gebied, deadline en tijdsinschatting.
 // Herkende stukjes gaan uit de titel en komen terug als chips.
 
-export type Chip = { kind: "gebied" | "deadline" | "plan" | "tijd" | "impact" | "status"; label: string };
+export type Chip = { kind: "gebied" | "deadline" | "plan" | "tijd" | "impact" | "status" | "herhaal"; label: string };
 
 export type Parsed = {
   title: string;
@@ -19,6 +20,7 @@ export type Parsed = {
   impact: Impact | null;
   status: Status;
   waitingOn: string | null;
+  repeat: Repeat | null;
   chips: Chip[];
 };
 
@@ -95,6 +97,29 @@ const DATE_PATTERNS: DatePattern[] = [
   },
 ];
 
+const N = `(?<n>\\d+|twee|drie|vier|vijf|zes)`;
+const EVERY = "(?:elke|iedere|ieder|elk)";
+
+const REPEAT_PATTERNS: { re: string; make: (g: Record<string, string>) => Repeat }[] = [
+  { re: `(?:${EVERY} werkdag|werkdagen|op werkdagen)`, make: () => ({ every: 1, unit: "dag", weekdays: [1, 2, 3, 4, 5] }) },
+  {
+    re: `(?:${EVERY}|om de) ${N} weken op (?<wd>${WEEKDAY_RE})`,
+    make: (g) => ({ every: toNumber(g.n), unit: "week", weekdays: [WEEKDAYS.indexOf(g.wd.toLowerCase())] }),
+  },
+  {
+    re: `${EVERY} (?<wd>${WEEKDAY_RE})(?: en (?<wd2>${WEEKDAY_RE}))?`,
+    make: (g) => ({
+      every: 1,
+      unit: "week",
+      weekdays: [g.wd, g.wd2].filter(Boolean).map((d) => WEEKDAYS.indexOf(d.toLowerCase())).sort(),
+    }),
+  },
+  { re: `(?:${EVERY}|om de) ${N} (?<unit>dagen|weken|maanden)`, make: (g) => ({ every: toNumber(g.n), unit: g.unit.startsWith("d") ? "dag" : g.unit.startsWith("w") ? "week" : "maand", weekdays: null }) },
+  { re: `(?:${EVERY} dag|dagelijks)`, make: () => ({ every: 1, unit: "dag", weekdays: null }) },
+  { re: `(?:${EVERY} week|wekelijks|om de week)`, make: () => ({ every: 1, unit: "week", weekdays: null }) },
+  { re: `(?:${EVERY} maand|maandelijks)`, make: () => ({ every: 1, unit: "maand", weekdays: null }) },
+];
+
 const HARD_PREFIXES = ["uiterlijk", "deadline", "vóór", "voor", "uiterlijk op", "deadline op"];
 
 type Estimate = { re: string; minutes: (g: Record<string, string>) => number | null };
@@ -161,6 +186,7 @@ export function parseTask(input: string, today: string): Parsed {
     impact: null,
     status: "inbox",
     waitingOn: null,
+    repeat: null,
     chips: [],
   };
 
@@ -233,6 +259,15 @@ export function parseTask(input: string, today: string): Parsed {
       return true;
     })
     .join(",");
+
+  // 3b. Herhaling: "elke maandag", "elke werkdag", "om de 2 weken", "maandelijks"
+  for (const r of REPEAT_PATTERNS) {
+    if (result.repeat) break;
+    take(new RegExp(`${START}${r.re}${END}`, "iu"), (g) => {
+      result.repeat = r.make(g);
+      return true;
+    });
+  }
 
   // 4. Plandatum: "@morgen", "@vrijdag"
   for (const p of DATE_PATTERNS) {
@@ -314,6 +349,8 @@ export function parseTask(input: string, today: string): Parsed {
   if (!title && result.waitingOn) title = `Wachten op ${result.waitingOn}`;
   result.title = title.charAt(0).toUpperCase() + title.slice(1);
 
+  if (result.repeat && !result.planDate) result.planDate = firstDate(result.repeat, today);
+
   // Chips
   const area = AREAS.find((a) => a.id === result.areaId);
   if (area) result.chips.push({ kind: "gebied", label: result.project ? `${area.short} / ${result.project}` : area.short });
@@ -323,6 +360,7 @@ export function parseTask(input: string, today: string): Parsed {
       label: `${result.deadlineHard ? "harde " : ""}deadline ${formatRelative(result.deadline, today)}`,
     });
   if (result.planDate) result.chips.push({ kind: "plan", label: `doen ${formatRelative(result.planDate, today)}` });
+  if (result.repeat) result.chips.push({ kind: "herhaal", label: `↻ ${repeatLabel(result.repeat)}` });
   if (result.estimate) result.chips.push({ kind: "tijd", label: estimateLabel(result.estimate) });
   if (result.impact) result.chips.push({ kind: "impact", label: `impact ${result.impact}` });
   if (result.status === "wachten")

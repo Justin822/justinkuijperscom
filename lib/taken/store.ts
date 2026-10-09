@@ -2,17 +2,19 @@ import { promises as fs } from "fs";
 import os from "os";
 import path from "path";
 import { hasRedis, redis } from "@/lib/redis";
-import type { DayPlan, Task } from "./types";
+import type { DayPlan, Note, Task } from "./types";
+import { normalizeTask } from "./validate";
 
 // Opslag voor de taken-app: Upstash Redis als die gekoppeld is,
 // anders een JSON-bestand (prima lokaal, niet persistent op Vercel).
 
 const TASKS_KEY = "taken:tasks";
+const NOTES_KEY = "taken:notes";
 const dayKey = (date: string) => `taken:day:${date}`;
 
 export const storageKind: "redis" | "file" = hasRedis ? "redis" : "file";
 
-type FileData = { tasks: Record<string, Task>; days: Record<string, DayPlan> };
+type FileData = { tasks: Record<string, Task>; days: Record<string, DayPlan>; notes: Record<string, Note> };
 
 const dataFile =
   process.env.TAKEN_DATA_FILE ||
@@ -21,9 +23,9 @@ const dataFile =
 async function readFile(): Promise<FileData> {
   try {
     const data = JSON.parse(await fs.readFile(dataFile, "utf8"));
-    return { tasks: data.tasks || {}, days: data.days || {} };
+    return { tasks: data.tasks || {}, days: data.days || {}, notes: data.notes || {} };
   } catch {
-    return { tasks: {}, days: {} };
+    return { tasks: {}, days: {}, notes: {} };
   }
 }
 
@@ -41,19 +43,26 @@ const parse = <T>(raw: string | null): T | null => {
 };
 
 export async function getTasks(): Promise<Task[]> {
-  if (storageKind === "file") return Object.values((await readFile()).tasks);
-  const flat = ((await redis(["HGETALL", TASKS_KEY])) as string[] | null) || [];
-  const tasks: Task[] = [];
+  if (storageKind === "file") return Object.values((await readFile()).tasks).map(normalizeTask);
+  return (await hashValues<Task>(TASKS_KEY)).map(normalizeTask);
+}
+
+async function hashValues<T>(key: string): Promise<T[]> {
+  const flat = ((await redis(["HGETALL", key])) as string[] | null) || [];
+  const values: T[] = [];
   for (let i = 1; i < flat.length; i += 2) {
-    const task = parse<Task>(flat[i]);
-    if (task) tasks.push(task);
+    const value = parse<T>(flat[i]);
+    if (value) values.push(value);
   }
-  return tasks;
+  return values;
 }
 
 export async function getTask(id: string): Promise<Task | null> {
-  if (storageKind === "file") return (await readFile()).tasks[id] || null;
-  return parse<Task>((await redis(["HGET", TASKS_KEY, id])) as string | null);
+  const task =
+    storageKind === "file"
+      ? (await readFile()).tasks[id] || null
+      : parse<Task>((await redis(["HGET", TASKS_KEY, id])) as string | null);
+  return task ? normalizeTask(task) : null;
 }
 
 export async function saveTasks(tasks: Task[]) {
@@ -100,4 +109,34 @@ export async function saveDay(plan: DayPlan) {
   }
   // Een dagplan is alleen een paar dagen nodig (voor de balans tussen gebieden).
   await redis(["SET", dayKey(plan.date), JSON.stringify(plan), "EX", String(60 * 60 * 24 * 60)]);
+}
+
+export async function getNotes(): Promise<Note[]> {
+  if (storageKind === "file") return Object.values((await readFile()).notes);
+  return hashValues<Note>(NOTES_KEY);
+}
+
+export async function getNote(id: string): Promise<Note | null> {
+  if (storageKind === "file") return (await readFile()).notes[id] || null;
+  return parse<Note>((await redis(["HGET", NOTES_KEY, id])) as string | null);
+}
+
+export async function saveNote(note: Note) {
+  if (storageKind === "file") {
+    const data = await readFile();
+    data.notes[note.id] = note;
+    await writeFile(data);
+    return;
+  }
+  await redis(["HSET", NOTES_KEY, note.id, JSON.stringify(note)]);
+}
+
+export async function deleteNote(id: string) {
+  if (storageKind === "file") {
+    const data = await readFile();
+    delete data.notes[id];
+    await writeFile(data);
+    return;
+  }
+  await redis(["HDEL", NOTES_KEY, id]);
 }

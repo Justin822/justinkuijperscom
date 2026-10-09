@@ -23,7 +23,15 @@ export function areaHistory(recent: DayPlan[]) {
   return { counts, total };
 }
 
-export function scoreTask(task: Task, today: string, history: ReturnType<typeof areaHistory>): Scored {
+/** Extra context voor vandaag: hoeveel vrije werktijd je agenda nog laat. */
+export type DayContext = { freeMinutes?: number | null };
+
+export function scoreTask(
+  task: Task,
+  today: string,
+  history: ReturnType<typeof areaHistory>,
+  ctx: DayContext = {}
+): Scored {
   const factors: Factor[] = [];
   const add = (points: number, reason: string) => factors.push({ points, reason });
 
@@ -44,6 +52,14 @@ export function scoreTask(task: Task, today: string, history: ReturnType<typeof 
     if (days === 0) add(60, "Je had hem voor vandaag ingepland");
     else if (days < 0) add(40, `Stond ingepland voor ${formatRelative(task.planDate, today)}`);
     else add(-40, "");
+  }
+
+  if (task.blockStart?.startsWith(today)) add(50, `Ingepland om ${task.blockStart.slice(11, 16)}`);
+
+  // Volle agenda: liever iets wat past dan een grote klus.
+  if (ctx.freeMinutes != null && ctx.freeMinutes < 120) {
+    if ((task.estimate || 0) >= 120) add(-25, "");
+    else if (task.estimate && task.estimate <= 30) add(8, "Past in je volle dag");
   }
 
   if (task.impact === "hoog") add(30, "Hoge impact");
@@ -80,11 +96,17 @@ export function scoreTask(task: Task, today: string, history: ReturnType<typeof 
 }
 
 /** Taken die vandaag in aanmerking komen, hoogste score eerst. */
-export function rankTasks(tasks: Task[], today: string, recent: DayPlan[], exclude: string[] = []): Scored[] {
+export function rankTasks(
+  tasks: Task[],
+  today: string,
+  recent: DayPlan[],
+  exclude: string[] = [],
+  ctx: DayContext = {}
+): Scored[] {
   const history = areaHistory(recent);
   return tasks
     .filter((t) => OPEN_STATUSES.includes(t.status) && !exclude.includes(t.id))
-    .map((t) => scoreTask(t, today, history))
+    .map((t) => scoreTask(t, today, history, ctx))
     .sort(
       (a, b) =>
         b.score - a.score ||
@@ -107,8 +129,8 @@ export function pickTop(ranked: Scored[], count: number, already: Task[] = []): 
   return picked;
 }
 
-export function makePlan(tasks: Task[], today: string, recent: DayPlan[]): DayPlan {
-  const top = pickTop(rankTasks(tasks, today, recent), 3);
+export function makePlan(tasks: Task[], today: string, recent: DayPlan[], ctx: DayContext = {}): DayPlan {
+  const top = pickTop(rankTasks(tasks, today, recent, [], ctx), 3);
   return {
     date: today,
     top3: top.map((s): Pick => ({ id: s.task.id, reason: s.reason })),

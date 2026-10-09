@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { makePlan } from "@/lib/taken/score";
 import { getDay, getTasks, saveDay } from "@/lib/taken/store";
-import { dayFrom, fail, noStore, recentPlans, syncPlan } from "@/lib/taken/server";
+import { dayContext, dayFrom, fail, noStore, recentPlans, syncPlan } from "@/lib/taken/server";
 import type { DayPlan } from "@/lib/taken/types";
 
 export const dynamic = "force-dynamic";
@@ -11,8 +11,10 @@ export const dynamic = "force-dynamic";
 async function todayPlan(date: string): Promise<DayPlan> {
   const tasks = await getTasks();
   const existing = await getDay(date);
-  if (existing) return syncPlan(existing, tasks);
-  const plan = makePlan(tasks, date, await recentPlans(date));
+  if (existing && (existing.top3.length >= 3 || existing.closedAt)) return syncPlan(existing, tasks);
+  const ctx = await dayContext(date, tasks);
+  if (existing) return syncPlan(existing, tasks, ctx);
+  const plan = makePlan(tasks, date, await recentPlans(date), ctx);
   await saveDay(plan);
   return plan;
 }
@@ -50,10 +52,12 @@ export async function POST(request: Request) {
       plan = await syncPlan({ ...plan, top3, swapped: plan.swapped.filter((s) => s !== id) }, tasks);
       await saveDay(plan);
     } else if (body?.action === "recompute") {
+      const tasks = await getTasks();
       const fresh = makePlan(
-        (await getTasks()).filter((t) => !plan.swapped.includes(t.id)),
+        tasks.filter((t) => !plan.swapped.includes(t.id)),
         date,
-        await recentPlans(date)
+        await recentPlans(date),
+        await dayContext(date, tasks)
       );
       plan = { ...fresh, swapped: plan.swapped, closedAt: plan.closedAt };
       await saveDay(plan);

@@ -3,40 +3,43 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect } from "react";
-import { CloudIcon, GridIcon, HourglassIcon, InboxIcon, MoonIcon, SunIcon } from "./icons";
-import QuickAdd from "./QuickAdd";
+import CommandPalette from "./CommandPalette";
+import FocusBar from "./FocusBar";
+import { SearchIcon } from "./icons";
+import { EXTRA, NAV } from "./nav";
 import { useTaken } from "./TakenContext";
 import TaskSheet from "./TaskSheet";
 
-const NAV = [
-  { href: "/app", label: "Vandaag", Icon: SunIcon },
-  { href: "/app/inbox", label: "Inbox", Icon: InboxIcon },
-  { href: "/app/gebieden", label: "Gebieden", Icon: GridIcon },
-  { href: "/app/wachten", label: "Wachten op", Icon: HourglassIcon },
-  { href: "/app/ooit", label: "Ooit", Icon: CloudIcon },
-  { href: "/app/afsluiten", label: "Afsluiten", Icon: MoonIcon, desktopOnly: true },
-];
-
 export default function Shell({ children }: { children: React.ReactNode }) {
-  const pathname = usePathname();
-  const { tasks, addRef, toast, editing, openTask } = useTaken();
+  const pathname = usePathname() || "";
+  const { tasks, addRef, toast, editing, openTask, palette, openPalette } = useTaken();
   const inboxCount = tasks.filter((t) => t.status === "inbox").length;
 
-  // Sneltoets: N opent overal het invoerveld, Escape sluit de taak.
+  // Sneltoetsen: ⌘K of / zoekt, N voegt toe, Escape sluit.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const el = e.target as HTMLElement;
       const typing = el.closest("input, textarea, select, [contenteditable]");
-      if (!typing && !e.metaKey && !e.ctrlKey && !e.altKey && (e.key === "n" || e.key === "N")) {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
         e.preventDefault();
-        window.scrollTo({ top: 0 });
-        addRef.current?.focus();
+        openPalette(palette ? null : "search");
+        return;
       }
-      if (e.key === "Escape" && editing) openTask(null);
+      if (typing || e.metaKey || e.ctrlKey || e.altKey) return;
+      if (e.key === "/") {
+        e.preventDefault();
+        openPalette("search");
+      } else if (e.key === "n" || e.key === "N") {
+        e.preventDefault();
+        if (addRef.current) {
+          window.scrollTo({ top: 0 });
+          addRef.current.focus();
+        } else openPalette("add");
+      } else if (e.key === "Escape" && editing) openTask(null);
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [addRef, editing, openTask]);
+  }, [addRef, editing, openTask, palette, openPalette]);
 
   // Service worker voor de app op je beginscherm.
   useEffect(() => {
@@ -46,36 +49,52 @@ export default function Shell({ children }: { children: React.ReactNode }) {
   }, []);
 
   const current = (href: string) =>
-    (href === "/app" ? pathname === "/app" : pathname?.startsWith(href)) ? "page" : undefined;
-
-  const links = (where: "side" | "bottom") =>
-    NAV.filter((n) => where === "side" || !n.desktopOnly).map(({ href, label, Icon }) => (
-      <Link key={href} href={href} aria-current={current(href)}>
-        <Icon />
-        <span>{where === "bottom" && label === "Wachten op" ? "Wachten" : label}</span>
-        {href === "/app/inbox" && inboxCount > 0 && <span className="tk-badge">{inboxCount}</span>}
-      </Link>
-    ));
+    (href === "/app" ? pathname === "/app" : pathname.startsWith(href)) ? "page" : undefined;
 
   return (
     <div className="tk-layout">
       <nav className="tk-side" aria-label="Menu">
-        <div style={{ padding: "0 10px 18px", fontWeight: 800, fontSize: 18, letterSpacing: "-0.02em" }}>
-          Taken
+        <div className="mb-5 flex items-center justify-between px-2.5">
+          <span style={{ fontWeight: 650, fontSize: 15, letterSpacing: "-0.02em" }}>Planner</span>
         </div>
-        {links("side")}
-        <div className="tk-faint" style={{ marginTop: "auto", padding: "0 10px", fontSize: 12.5 }}>
+        <button type="button" className="tk-side-btn mb-3" onClick={() => openPalette("search")}>
+          <SearchIcon />
+          Zoeken
+          <span className="tk-kbd ml-auto">⌘K</span>
+        </button>
+        {NAV.map(({ href, label, Icon }) => (
+          <Link key={href} href={href} aria-current={current(href)}>
+            <Icon />
+            {label}
+            {href === "/app/taken" && inboxCount > 0 && <span className="tk-count">{inboxCount}</span>}
+          </Link>
+        ))}
+        <div className="mt-4" />
+        {EXTRA.map(({ href, label, Icon }) => (
+          <Link key={href} href={href} aria-current={current(href)}>
+            <Icon />
+            {label}
+          </Link>
+        ))}
+        <div className="tk-faint mt-auto px-2.5 text-xs leading-6">
           <span className="tk-kbd">N</span> nieuwe taak
+          <br />
+          <span className="tk-kbd">/</span> zoeken
         </div>
       </nav>
-      <main className="tk-main">
-        <QuickAdd />
-        {children}
-      </main>
+      <main className={`tk-main ${pathname.startsWith("/app/agenda") ? "is-wide" : ""}`}>{children}</main>
       <nav className="tk-bottom" aria-label="Menu">
-        {links("bottom")}
+        {NAV.map(({ href, label, Icon }) => (
+          <Link key={href} href={href} aria-current={current(href)}>
+            <Icon />
+            <span>{label}</span>
+            {href === "/app/taken" && inboxCount > 0 && <span className="tk-count">{inboxCount}</span>}
+          </Link>
+        ))}
       </nav>
+      <FocusBar />
       {editing && <TaskSheet id={editing} />}
+      {palette && <CommandPalette />}
       {toast && (
         <div className="tk-toast" role="status">
           <span>{toast.text}</span>
