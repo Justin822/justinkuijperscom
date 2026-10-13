@@ -1,5 +1,5 @@
 import { allPosts } from "contentlayer/generated";
-import { getMDXComponent } from "next-contentlayer/hooks";
+import { getMDXComponent } from "next-contentlayer2/hooks";
 import { format, parseISO } from "date-fns";
 import Image from "next/image";
 import justinkuijpers from "@/images/justinkuijpers.png";
