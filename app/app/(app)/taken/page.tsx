@@ -13,6 +13,7 @@ import QuickAdd from "../../_components/QuickAdd";
 import TaskRow from "../../_components/TaskRow";
 import { useTakenActions, useTakenData } from "../../_components/TakenContext";
 import { searchable } from "@/lib/taken/text";
+import { SOURCE_GROUP_LABEL, sourceGroup, type SourceGroup } from "@/lib/taken/source";
 
 // Eén tab voor alle taken: Inbox, Open (per gebied en project), Wachten op, Ooit en Af.
 
@@ -45,6 +46,7 @@ export default function TasksPage() {
   const list = (LISTS.find((l) => l.id === params?.get("lijst"))?.id || (tasks.some((t) => t.status === "inbox") ? "inbox" : "open")) as List;
   const [area, setArea] = useState<AreaId | null>(null);
   const [query, setQuery] = useState("");
+  const [source, setSource] = useState<SourceGroup | null>(null);
   const [expanded, setExpanded] = useState<string | null>(null);
 
   const setList = (id: List) => router.replace(`${pathname}?lijst=${id}`);
@@ -54,6 +56,7 @@ export default function TasksPage() {
     return tasks
       .filter((t) => inList(t, list))
       .filter((t) => !area || t.areaId === area)
+      .filter((t) => list !== "inbox" || !source || sourceGroup(t.source) === source)
       .filter((t) => !q || searchable(`${t.title} ${t.project || ""} ${t.note || ""} ${t.waitingOn || ""}`).includes(q))
       .sort(
         list === "af"
@@ -64,7 +67,14 @@ export default function TasksPage() {
           ? (a, b) => (a.followUp || "9999").localeCompare(b.followUp || "9999")
           : byUrgency
       );
-  }, [tasks, list, area, query]);
+  }, [tasks, list, area, query, source]);
+
+  // Inbox: filteren op herkomst, alleen als er meer dan één soort in staat.
+  const sourceCounts = useMemo(() => {
+    const counts = new Map<SourceGroup, number>();
+    for (const t of tasks) if (t.status === "inbox") counts.set(sourceGroup(t.source), (counts.get(sourceGroup(t.source)) || 0) + 1);
+    return counts;
+  }, [tasks]);
 
   const counts = Object.fromEntries(LISTS.map((l) => [l.id, tasks.filter((t) => inList(t, l.id)).length])) as Record<List, number>;
 
@@ -157,6 +167,21 @@ export default function TasksPage() {
           </button>
         ))}
       </div>
+
+      {list === "inbox" && sourceCounts.size > 1 && (
+        <div className="tk-pills mt-3" aria-label="Herkomst">
+          <button type="button" className="tk-pill" aria-pressed={!source} onClick={() => setSource(null)}>
+            Alle bronnen
+          </button>
+          {(["mail", "gedeeld", "snelknop", "app"] as SourceGroup[])
+            .filter((g) => sourceCounts.has(g))
+            .map((g) => (
+              <button key={g} type="button" className="tk-pill" aria-pressed={source === g} onClick={() => setSource(source === g ? null : g)}>
+                {SOURCE_GROUP_LABEL[g]} <span className="tk-faint">{sourceCounts.get(g)}</span>
+              </button>
+            ))}
+        </div>
+      )}
 
       <div className="mt-3 flex flex-wrap items-center gap-2">
         <AreaPills value={area} onChange={setArea} toggle all />

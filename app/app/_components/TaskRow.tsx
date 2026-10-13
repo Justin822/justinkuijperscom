@@ -4,6 +4,7 @@ import { memo } from "react";
 import { AREA_BY_ID, estimateLabel } from "@/lib/taken/config";
 import { diffDays, formatRelative } from "@/lib/taken/dates";
 import { repeatLabel } from "@/lib/taken/repeat";
+import { isOutside, SOURCE_LABEL, sourceLink } from "@/lib/taken/source";
 import type { Task } from "@/lib/taken/types";
 import { CheckIcon } from "./icons";
 import { useTakenActions, useToday } from "./TakenContext";
@@ -64,12 +65,22 @@ export const TaskMeta = memo(function TaskMeta({ task, hideArea }: { task: Task;
       </span>
     );
   if (task.focusMinutes > 0) parts.push(<span key="focus">{focusLabel(task.focusMinutes)} gefocust</span>);
-  if (task.mailLink)
+  // Herkomst: van buiten de app (mail, gedeeld, snelknop) met een link terug als die er is.
+  const link = sourceLink(task);
+  if (isOutside(task.source) || link) {
+    const label = isOutside(task.source) ? SOURCE_LABEL[task.source] : "link";
     parts.push(
-      <a key="mail" href={task.mailLink} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()}>
-        mail
-      </a>
+      link ? (
+        <a key="src" className="tk-src" href={link} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()}>
+          {label} ↗
+        </a>
+      ) : (
+        <span key="src" className="tk-src">
+          {label}
+        </span>
+      )
     );
+  }
 
   return parts.length ? <div className="tk-meta">{parts}</div> : null;
 });

@@ -8,16 +8,7 @@ import AreaPills from "./AreaPills";
 import { PlayIcon, TrashIcon, XIcon } from "./icons";
 import { useTakenActions, useTakenData, useTakenUi } from "./TakenContext";
 import { focusLabel } from "./TaskRow";
-
-const SOURCE_LABEL: Record<Task["source"], string> = {
-  handmatig: "getypt",
-  spraak: "ingesproken",
-  doorgestuurd: "doorgestuurde mail",
-  "mail-radar": "mail-radar",
-  notitie: "uit een notitie",
-  snelknop: "snelknop op je telefoon",
-  gedeeld: "gedeeld vanuit een andere app",
-};
+import { SOURCE_LABEL } from "@/lib/taken/source";
 
 type RepeatChoice = "nooit" | "dag" | "werkdagen" | "week" | "maand";
 

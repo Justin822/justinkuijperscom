@@ -45,3 +45,24 @@ test("het importbestand voor HTTP Shortcuts bevat de nieuwe sleutel", async ({ a
   expect(shortcuts.map((s: any) => s.authToken)).toEqual([token, token]);
   expect(shortcuts[0].url).toMatch(/\/api\/taken\/capture\?format=text$/);
 });
+
+test("in de Inbox zie en filter je waar een taak vandaan komt", async ({ app }) => {
+  await app.request.post("/api/taken/tasks", {
+    data: {
+      tasks: [
+        { title: "Uit de mail", source: "mail-radar", mailLink: "https://mail.google.com/mail/u/0/#all/abc" },
+        { title: "Gedeelde pagina", source: "gedeeld", note: "https://example.com/x" },
+        { title: "Zelf getypt" },
+      ],
+    },
+  });
+  await app.goto("/app/taken?lijst=inbox");
+  const mailRow = app.locator(".tk-row").filter({ hasText: "Uit de mail" });
+  await expect(mailRow.getByRole("link", { name: /uit je mail/ })).toHaveAttribute("href", "https://mail.google.com/mail/u/0/#all/abc");
+  await expect(app.locator(".tk-row").filter({ hasText: "Gedeelde pagina" }).getByRole("link", { name: /gedeeld/ })).toHaveAttribute("href", "https://example.com/x");
+
+  await app.getByRole("button", { name: /^Mail/ }).click();
+  await expect(app.locator(".tk-row")).toHaveCount(1);
+  await app.getByRole("button", { name: "Alle bronnen" }).click();
+  await expect(app.locator(".tk-row")).toHaveCount(3);
+});

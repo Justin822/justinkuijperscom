@@ -1780,3 +1780,13 @@ html.tk-dragging * {
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
   white-space: nowrap;
 }
+
+/* Herkomst van een taak (mail, gedeeld, snelknop). */
+.tk .tk-meta .tk-src {
+  color: var(--muted);
+  text-decoration: none;
+}
+.tk .tk-meta a.tk-src:hover {
+  color: var(--text);
+  text-decoration: underline;
+}
