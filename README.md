@@ -92,6 +92,19 @@ Typ een gewone zin, bijv. `Offerte Jansen vrijdag, Appèl, half uur`. De parser 
 
 Bij een terugkerende taak staat de volgende keer klaar zodra je hem afvinkt. Meerdere taken tegelijk kan met een nieuwe regel, `;` of "en daarnaast". De microfoonknop gebruikt de spraakherkenning van je browser.
 
+### Snel invoeren van buiten de app
+
+Met een sleutel uit **Instellingen → Snel invoeren** zet je taken in je Inbox zonder de app te openen, bijv. met de Android-app **HTTP Shortcuts** (knop op je startscherm, tegel in je snelle instellingen of via het deelmenu).
+
+- `POST /api/taken/capture` met header `Authorization: Bearer <sleutel>`
+  - body als platte tekst, formulier of JSON: `{ "text": "...", "title": "...", "url": "...", "note": "...", "source": "gedeeld" }`
+  - de tekst gaat door dezelfde parser als het invoerveld; meerdere regels worden meerdere taken; een gedeelde link komt in de notitie
+  - begint de tekst met `notitie:`, dan wordt het een notitie
+- `GET /api/taken/capture/today`: je top 3 van vandaag
+- met `?format=text` krijg je één regel tekst terug (handig als melding)
+
+Elk apparaat krijgt een eigen sleutel; alleen een hash wordt bewaard en intrekken kan in Instellingen.
+
 ### Setup op Vercel
 
 1. `TAKEN_PASSWORD`: wachtwoord voor de app. Lokaal is het `taken`.

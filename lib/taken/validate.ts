@@ -6,7 +6,7 @@ import type { AreaId, Impact, Note, Repeat, Source, Status, Task } from "./types
 
 const STATUSES: Status[] = ["inbox", "gepland", "bezig", "wachten", "ooit", "af"];
 const IMPACTS: Impact[] = ["laag", "middel", "hoog"];
-const SOURCES: Source[] = ["handmatig", "spraak", "doorgestuurd", "mail-radar", "notitie"];
+const SOURCES: Source[] = ["handmatig", "spraak", "doorgestuurd", "mail-radar", "notitie", "snelknop", "gedeeld"];
 const UNITS: Repeat["unit"][] = ["dag", "week", "maand"];
 
 function cleanRepeat(value: any): Repeat | null {

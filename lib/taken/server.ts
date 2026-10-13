@@ -3,8 +3,8 @@ import { OPEN_STATUSES } from "./config";
 import { addDays, amsterdamToday, isIsoDate } from "./dates";
 import { freeMinutesOn } from "./agenda-server";
 import { spawnNext } from "./repeat";
-import { DayContext, pickTop, rankTasks } from "./score";
-import { getDays, getTasks, saveDay } from "./store";
+import { DayContext, makePlan, pickTop, rankTasks } from "./score";
+import { getDay, getDays, getTasks, saveDay } from "./store";
 import type { DayPlan, Task } from "./types";
 
 export const noStore = { "Cache-Control": "no-store" };
@@ -51,6 +51,18 @@ export async function syncPlan(plan: DayPlan, tasks?: Task[], ctx: DayContext = 
   const next: DayPlan = { ...plan, top3, areas: top3.map((p) => byId.get(p.id)?.areaId ?? null) };
   if (changed) await saveDay(next);
   return next;
+}
+
+/** De top 3 van een dag: bij de eerste keer openen gekozen en daarna vastgehouden. */
+export async function todayPlan(date: string, tasks?: Task[]): Promise<DayPlan> {
+  const all = tasks || (await getTasks());
+  const existing = await getDay(date);
+  if (existing && (existing.top3.length >= 3 || existing.closedAt)) return syncPlan(existing, all);
+  const ctx = await dayContext(date, all);
+  if (existing) return syncPlan(existing, all, ctx);
+  const plan = makePlan(all, date, await recentPlans(date), ctx);
+  await saveDay(plan);
+  return plan;
 }
 
 /** Vrije tijd van vandaag uit de agenda; mag nooit de top 3 blokkeren (max. 3 seconden). */

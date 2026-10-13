@@ -27,5 +27,6 @@ export function publicSettings(s: Settings): PublicSettings {
       canEdit: canEdit(s.google),
       defaultCalendarId: s.google?.defaultCalendarId || null,
     },
+    captureTokens: (s.captureTokens || []).map(({ id, name, createdAt, lastUsedAt }) => ({ id, name, createdAt, lastUsedAt })),
   };
 }

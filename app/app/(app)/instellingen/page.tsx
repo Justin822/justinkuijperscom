@@ -7,7 +7,7 @@ import { TrashIcon } from "../../_components/icons";
 import PageHeader from "../../_components/PageHeader";
 import { api, useTaken } from "../../_components/TakenContext";
 
-// Instellingen: Google Agenda koppelen, iCal-links (Outlook) toevoegen en je werkdag.
+// Instellingen: Google Agenda koppelen, iCal-links (Outlook), sleutels voor snel invoeren en je werkdag.
 
 const FLASH: Record<string, string> = {
   gekoppeld: "Google Agenda is gekoppeld.",
@@ -35,6 +35,8 @@ export default function SettingsPage() {
   const [icsUrl, setIcsUrl] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
   const [workday, setWorkday] = useState(settings?.workday || { start: "09:00", end: "17:30" });
+  const [keyName, setKeyName] = useState("");
+  const [newKey, setNewKey] = useState<string | null>(null);
 
   // Melding na terugkomst van Google, daarna de adresbalk opschonen.
   useEffect(() => {
@@ -64,7 +66,7 @@ export default function SettingsPage() {
   const act = async (action: string, body: object = {}, label = action) => {
     setBusy(label);
     try {
-      const data = await api<{ settings: PublicSettings; found?: number }>("/api/taken/settings", {
+      const data = await api<{ settings: PublicSettings; found?: number; token?: string }>("/api/taken/settings", {
         method: "POST",
         body: JSON.stringify({ action, ...body }),
       });
@@ -300,6 +302,94 @@ export default function SettingsPage() {
             Deel zo&apos;n link met niemand: wie hem heeft, kan je agenda lezen.
           </div>
         </details>
+      </Section>
+
+      <Section
+        title="Snel invoeren"
+        intro="Zet taken in je Inbox zonder de app te openen: met een knop op je startscherm, een tegel in je snelle instellingen of het deelmenu van een andere app. Elk apparaat krijgt een eigen sleutel die je hier weer kunt intrekken."
+      >
+        {settings.captureTokens.length > 0 && (
+          <div className="tk-list mb-4">
+            {settings.captureTokens.map((t) => (
+              <div key={t.id} className="tk-row items-center" style={{ padding: "9px 0" }}>
+                <div className="min-w-0 flex-1">
+                  <div className="font-medium">{t.name}</div>
+                  <div className="tk-faint text-xs">
+                    {t.lastUsedAt ? `Laatst gebruikt ${new Date(t.lastUsedAt).toLocaleDateString("nl-NL")}` : "Nog niet gebruikt"}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  className="tk-icon-btn"
+                  aria-label={`Sleutel ${t.name} intrekken`}
+                  onClick={() => {
+                    if (window.confirm(`Sleutel "${t.name}" intrekken? Snelknoppen met deze sleutel werken dan niet meer.`)) {
+                      act("captureRevoke", { id: t.id }, "revoke").then((d) => d && notify(`Sleutel ${t.name} ingetrokken`));
+                    }
+                  }}
+                >
+                  <TrashIcon />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {newKey ? (
+          <div className="tk-card p-4 text-sm">
+            <div className="font-medium">Je nieuwe sleutel</div>
+            <p className="tk-muted mt-1">Kopieer hem nu: je ziet hem maar één keer.</p>
+            <code className="mt-2 block break-all rounded bg-[color:var(--hover)] p-2" data-testid="nieuwe-sleutel">
+              {newKey}
+            </code>
+            <div className="mt-2 flex gap-2">
+              <button
+                type="button"
+                className="tk-btn tk-btn-sm"
+                onClick={() => navigator.clipboard?.writeText(newKey).then(() => notify("Sleutel gekopieerd"), () => notify("Kopiëren lukte niet"))}
+              >
+                Kopieer sleutel
+              </button>
+              <button type="button" className="tk-btn tk-btn-ghost tk-btn-sm" onClick={() => setNewKey(null)}>
+                Klaar
+              </button>
+            </div>
+            <div className="tk-muted mt-4 leading-6">
+              <strong className="text-[color:var(--text)]">Zo stel je het in (Android, app HTTP Shortcuts):</strong>
+              <ol className="ml-5 list-decimal">
+                <li>Nieuwe snelkoppeling → methode <code>POST</code>, URL <code className="break-all">{`${window.location.origin}/api/taken/capture?format=text`}</code></li>
+                <li>Header <code>Authorization</code> met waarde <code>Bearer</code>, een spatie en de sleutel</li>
+                <li>Body: tekst (<code>text/plain</code>) met een variabele die om invoer vraagt (typen of inspreken)</li>
+                <li>Antwoord tonen als melding: je ziet meteen wat er in je Inbox staat</li>
+              </ol>
+              Je top 3 lezen kan met <code>GET</code> op <code>/api/taken/capture/today?format=text</code>. Begin een regel met <code>notitie:</code> voor een notitie.
+            </div>
+          </div>
+        ) : (
+          <form
+            className="flex flex-wrap gap-2"
+            onSubmit={async (e) => {
+              e.preventDefault();
+              const data = await act("captureCreate", { name: keyName }, "capture");
+              if (data?.token) {
+                setNewKey(data.token);
+                setKeyName("");
+              }
+            }}
+          >
+            <input
+              className="tk-input flex-1"
+              style={{ minWidth: 180 }}
+              value={keyName}
+              onChange={(e) => setKeyName(e.target.value)}
+              placeholder="Naam, bijv. Mijn telefoon"
+              aria-label="Naam van de sleutel"
+            />
+            <button type="submit" className="tk-btn" disabled={!!busy}>
+              {busy === "capture" ? "Bezig…" : "Nieuwe sleutel"}
+            </button>
+          </form>
+        )}
       </Section>
 
       <Section title="Werkdag" intro="Gebruikt voor je vrije tijd per dag en de keuze van je top 3.">

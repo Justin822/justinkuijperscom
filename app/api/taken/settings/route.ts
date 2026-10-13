@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { clearIcsCache, normalizeIcsUrl, testIcs } from "@/lib/taken/agenda-server";
 import { disconnect, refreshCalendars, selectCalendars, setDefaultCalendar } from "@/lib/taken/google";
 import { fail, noStore } from "@/lib/taken/server";
+import { hashToken, makeToken } from "@/lib/taken/capture";
 import { publicSettings } from "@/lib/taken/settings";
 import { getSettings, updateSettings } from "@/lib/taken/store";
 import { newId } from "@/lib/taken/validate";
@@ -69,6 +70,19 @@ export async function POST(request: Request) {
         } catch (error: any) {
           return bad(`Agenda's ophalen mislukt: ${error?.message || "onbekende fout"}`);
         }
+        return reply();
+      }
+      case "captureCreate": {
+        // Het token zelf zie je maar één keer; bewaard wordt alleen de hash.
+        const name = (typeof body.name === "string" && body.name.trim().slice(0, 40)) || "Telefoon";
+        if (((await getSettings()).captureTokens || []).length >= 10) return bad("Je kunt maximaal 10 sleutels hebben.");
+        const token = makeToken();
+        const entry = { id: newId(), name, hash: hashToken(token), createdAt: Date.now(), lastUsedAt: null };
+        await updateSettings((s) => ({ ...s, captureTokens: [...(s.captureTokens || []), entry] }));
+        return reply({ token, tokenId: entry.id });
+      }
+      case "captureRevoke": {
+        await updateSettings((s) => ({ ...s, captureTokens: (s.captureTokens || []).filter((t) => t.id !== body.id) }));
         return reply();
       }
       case "googleDisconnect": {

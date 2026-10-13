@@ -2,7 +2,7 @@ export type AreaId = "appel" | "felicio" | "cliq" | "side" | "prive";
 
 export type Status = "inbox" | "gepland" | "bezig" | "wachten" | "ooit" | "af";
 export type Impact = "laag" | "middel" | "hoog";
-export type Source = "handmatig" | "spraak" | "doorgestuurd" | "mail-radar" | "notitie";
+export type Source = "handmatig" | "spraak" | "doorgestuurd" | "mail-radar" | "notitie" | "snelknop" | "gedeeld";
 
 /** Herhaling: elke `every` dagen/weken/maanden, eventueel alleen op bepaalde weekdagen (0 = zondag). */
 export type Repeat = { every: number; unit: "dag" | "week" | "maand"; weekdays: number[] | null };
@@ -132,10 +132,14 @@ export type GoogleLink = {
   defaultCalendarId?: string | null;
 };
 
+/** Sleutel waarmee een snelknop of ander apparaat taken in je Inbox mag zetten (alleen de hash wordt bewaard). */
+export type CaptureToken = { id: string; name: string; hash: string; createdAt: number; lastUsedAt: number | null };
+
 export type Settings = {
   icsSources: IcsSource[];
   workday: { start: string; end: string };
   google: GoogleLink | null;
+  captureTokens?: CaptureToken[];
 };
 
 /** Wat de browser van de instellingen te zien krijgt: geen tokens, geen volledige links. */
@@ -153,4 +157,5 @@ export type PublicSettings = {
     canEdit: boolean;
     defaultCalendarId: string | null;
   };
+  captureTokens: { id: string; name: string; createdAt: number; lastUsedAt: number | null }[];
 };

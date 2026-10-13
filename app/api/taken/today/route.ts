@@ -1,23 +1,9 @@
 import { NextResponse } from "next/server";
 import { makePlan, promotePick } from "@/lib/taken/score";
-import { getDay, getTasks, saveDay } from "@/lib/taken/store";
-import { dayContext, dayFrom, fail, noStore, recentPlans, syncPlan } from "@/lib/taken/server";
-import type { DayPlan } from "@/lib/taken/types";
+import { getTasks, saveDay } from "@/lib/taken/store";
+import { dayContext, dayFrom, fail, noStore, recentPlans, syncPlan, todayPlan } from "@/lib/taken/server";
 
 export const dynamic = "force-dynamic";
-
-// De top 3 wordt bij de eerste keer openen van de dag gekozen en daarna vastgehouden.
-
-async function todayPlan(date: string): Promise<DayPlan> {
-  const tasks = await getTasks();
-  const existing = await getDay(date);
-  if (existing && (existing.top3.length >= 3 || existing.closedAt)) return syncPlan(existing, tasks);
-  const ctx = await dayContext(date, tasks);
-  if (existing) return syncPlan(existing, tasks, ctx);
-  const plan = makePlan(tasks, date, await recentPlans(date), ctx);
-  await saveDay(plan);
-  return plan;
-}
 
 export async function GET(request: Request) {
   try {

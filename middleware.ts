@@ -11,7 +11,8 @@ const PROTECTED = /^\/(rankingthestars|api\/rankingthestars|rts-photos)(\/|$)/;
 const OPEN = ["/api/rankingthestars/login", "/rankingthestars/toegang"];
 
 const TAKEN_PROTECTED = /^\/(app|api\/taken)(\/|$)/;
-const TAKEN_OPEN = ["/api/taken/login", "/app/toegang"];
+// Snel invoeren werkt met een eigen sleutel (zie app/api/taken/capture), niet met het cookie.
+const TAKEN_OPEN = ["/api/taken/login", "/app/toegang", "/api/taken/capture", "/api/taken/capture/today"];
 
 export async function middleware(request: NextRequest) {
   const url = request.nextUrl.clone();

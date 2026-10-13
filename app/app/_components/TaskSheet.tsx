@@ -15,6 +15,8 @@ const SOURCE_LABEL: Record<Task["source"], string> = {
   doorgestuurd: "doorgestuurde mail",
   "mail-radar": "mail-radar",
   notitie: "uit een notitie",
+  snelknop: "snelknop op je telefoon",
+  gedeeld: "gedeeld vanuit een andere app",
 };
 
 type RepeatChoice = "nooit" | "dag" | "werkdagen" | "week" | "maand";
