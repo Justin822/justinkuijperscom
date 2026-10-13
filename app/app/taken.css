@@ -1756,3 +1756,9 @@ html.tk-dragging * {
     scrollbar-width: thin;
   }
 }
+
+/* Lange links en sleutels in <code> mogen afbreken; anders wordt de pagina op een telefoon breder dan het scherm. */
+.tk code {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
