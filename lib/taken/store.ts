@@ -2,6 +2,7 @@ import { promises as fs } from "fs";
 import os from "os";
 import path from "path";
 import { hasRedis, redis } from "@/lib/redis";
+import { WORKDAY } from "./agenda";
 import { seal, unseal } from "./secrets";
 import type { DayPlan, Note, Settings, Task } from "./types";
 import { normalizeTask } from "./validate";
@@ -15,7 +16,7 @@ const SETTINGS_KEY = "taken:settings";
 
 export const DEFAULT_SETTINGS: Settings = {
   icsSources: [],
-  workday: { start: "09:00", end: "17:30" },
+  workday: WORKDAY,
   google: null,
 };
 const dayKey = (date: string) => `taken:day:${date}`;
@@ -54,8 +55,12 @@ async function readFile(): Promise<FileData> {
   }
 }
 
+// Eerst naar een tijdelijk bestand en dan hernoemen (atomair): een verzoek dat tegelijk leest,
+// ziet zo altijd het hele oude of het hele nieuwe bestand, nooit een half geschreven versie.
 async function writeFile(data: FileData) {
-  await fs.writeFile(dataFile, JSON.stringify(data, null, 2), "utf8");
+  const tmp = `${dataFile}.${process.pid}.${Date.now()}.tmp`;
+  await fs.writeFile(tmp, JSON.stringify(data, null, 2), "utf8");
+  await fs.rename(tmp, dataFile);
 }
 
 // Wijzigingen in het bestand één voor één, zodat twee gelijktijdige verzoeken elkaars werk niet overschrijven.
