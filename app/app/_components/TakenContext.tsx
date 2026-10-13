@@ -3,6 +3,8 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { addDays, localToday } from "@/lib/taken/dates";
 import { applyDelta } from "@/lib/taken/delta";
+import { newId, newNote, newTask } from "@/lib/taken/validate";
+import { clearOffline, dequeue, enqueue, isOfflineError, loadSnapshot, QueuedError, queued, saveSnapshot } from "./offline";
 import { WORKDAY } from "@/lib/taken/agenda";
 import type { CalendarEvent, DayPlan, Note, PublicSettings, Task } from "@/lib/taken/types";
 import { readLocal, writeLocal } from "./device";
@@ -63,6 +65,8 @@ type Ctx = {
   settings: PublicSettings | null;
   setSettings: (s: PublicSettings) => void;
   workday: { start: string; end: string };
+  /** Verbinding en de offline-wachtrij: hoeveel wijzigingen nog wachten op verzenden. */
+  sync: { online: boolean; pending: number };
 };
 
 // Drie contexten, zodat een onderdeel alleen opnieuw tekent als wat het gebruikt verandert:
@@ -90,12 +94,30 @@ export class ApiError extends Error {
   }
 }
 
-export async function api<T = any>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(path, {
-    ...init,
-    headers: { "Content-Type": "application/json", ...(init?.headers || {}) },
-    cache: "no-store",
-  });
+// Luisteraars voor de offline-wachtrij (aantal wachtende wijzigingen in de balk).
+const outboxListeners = new Set<() => void>();
+
+/**
+ * Verzoek naar de eigen API. Met `queue` gaat een wijziging bij geen verbinding in de offline-wachtrij
+ * (QueuedError) in plaats van te mislukken; hij wordt verstuurd zodra er weer verbinding is.
+ */
+export async function api<T = any>(path: string, init?: RequestInit, options: { queue?: boolean } = {}): Promise<T> {
+  let res: Response;
+  try {
+    res = await fetch(path, {
+      ...init,
+      headers: { "Content-Type": "application/json", ...(init?.headers || {}) },
+      cache: "no-store",
+    });
+  } catch (error) {
+    const method = (init?.method || "GET").toUpperCase();
+    if (options.queue && method !== "GET" && isOfflineError(error)) {
+      await enqueue({ method, path, body: typeof init?.body === "string" ? init.body : undefined });
+      outboxListeners.forEach((listener) => listener());
+      throw new QueuedError();
+    }
+    throw error;
+  }
   if (res.status === 401) {
     window.location.href = "/app/toegang";
     throw new Error("Log eerst in.");
@@ -165,6 +187,10 @@ export function TakenProvider({ children }: { children: React.ReactNode }) {
     if (last) last();
   }, []);
 
+  // Lokale kopie (IndexedDB): de app opent direct met je laatste gegevens, ook zonder netwerk.
+  const networkLoaded = useRef(false);
+  const fromSnapshot = useRef(false);
+
   // Na de eerste keer alleen wijzigingen ophalen (delta-sync); elke 10 minuten toch weer alles.
   const lastSync = useRef<{ at: number; full: number } | null>(null);
   const reload = useCallback(async () => {
@@ -176,6 +202,9 @@ export function TakenProvider({ children }: { children: React.ReactNode }) {
         api<{ notes: Note[]; ids?: string[]; now: number }>(`/api/taken/notes${delta}`),
         api<{ settings: PublicSettings }>("/api/taken/settings").catch(() => null),
       ]);
+      // Wachten er nog offline wijzigingen, dan is de lijst in de browser nieuwer dan die op de server:
+      // eerst versturen (flushOutbox laadt daarna opnieuw).
+      if ((await queued()).length) return;
       setTasks((list) => applyDelta(list, { items: t.tasks, ids: t.ids, now: t.now }));
       setNotes((list) => applyDelta(list, { items: n.notes, ids: n.ids, now: n.now }));
       lastSync.current = { at: Math.min(t.now, n.now), full: delta && prev ? prev.full : Date.now() };
@@ -191,8 +220,10 @@ export function TakenProvider({ children }: { children: React.ReactNode }) {
           })
           .catch(() => {});
       }
+      networkLoaded.current = true;
     } catch (err: any) {
-      setError(err.message);
+      // Offline met een lokale kopie: gewoon doorwerken, de balk laat zien dat je offline bent.
+      if (!(isOfflineError(err) && fromSnapshot.current)) setError(err.message);
     } finally {
       setLoaded(true);
     }
@@ -209,9 +240,90 @@ export function TakenProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     setMounted(true);
+    loadSnapshot<{ tasks: Task[]; notes: Note[]; settings: PublicSettings | null; plan: DayPlan | null }>("data").then((snap) => {
+      if (!snap || networkLoaded.current) return;
+      fromSnapshot.current = true;
+      setTasks(snap.tasks);
+      setNotes(snap.notes);
+      if (snap.settings) setSettingsState(snap.settings);
+      if (snap.plan?.date === localToday()) setPlan((p) => p || snap.plan);
+      setLoaded(true);
+    });
     reload();
     setFocus(readFocus());
   }, [reload]);
+
+  // De kopie bijwerken zodra er iets verandert (even wachten, zodat snel typen niet steeds schrijft).
+  useEffect(() => {
+    if (!loaded || !networkLoaded.current) return;
+    const timer = setTimeout(() => saveSnapshot("data", { tasks, notes, settings, plan }), 500);
+    return () => clearTimeout(timer);
+  }, [loaded, tasks, notes, settings, plan]);
+
+  // ----- Offline-wachtrij -----
+  const [sync, setSync] = useState({ online: true, pending: 0 });
+  const countPending = useCallback(async () => {
+    const pending = (await queued()).length;
+    setSync({ online: typeof navigator === "undefined" ? true : navigator.onLine, pending });
+  }, []);
+  const flushing = useRef(false);
+  /** Wachtende wijzigingen versturen, op volgorde. Stopt bij geen verbinding; daarna opnieuw laden. */
+  const flushOutbox = useCallback(async () => {
+    if (flushing.current) return;
+    flushing.current = true;
+    let sent = 0;
+    try {
+      for (const item of await queued()) {
+        let res: Response;
+        try {
+          res = await fetch(item.path, { method: item.method, headers: { "Content-Type": "application/json" }, body: item.body, cache: "no-store" });
+        } catch {
+          break; // nog steeds offline
+        }
+        if (res.status === 401 || res.status >= 500) break; // eerst inloggen, of de server later nog eens
+        if (res.status === 409 && item.path.startsWith("/api/taken/notes/") && item.body) {
+          // Notitie intussen elders gewijzigd: jouw offline versie wordt een kopie, niets gaat verloren.
+          const body = JSON.parse(item.body).body as string | undefined;
+          if (body) {
+            const [first, ...rest] = body.split("\n");
+            await fetch("/api/taken/notes", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ body: [`${first || "Notitie"} (jouw versie)`, ...rest].join("\n") }),
+            }).catch(() => {});
+          }
+        }
+        await dequeue(item.id as number);
+        sent++;
+      }
+    } finally {
+      flushing.current = false;
+      await countPending();
+    }
+    if (sent) {
+      lastSync.current = null; // alles opnieuw, zodat de app precies de stand van de server toont
+      await reload();
+    }
+  }, [countPending, reload]);
+
+  useEffect(() => {
+    const changed = () => {
+      countPending();
+      if (navigator.onLine) flushOutbox();
+    };
+    outboxListeners.add(countPending);
+    window.addEventListener("online", changed);
+    window.addEventListener("offline", changed);
+    changed();
+    // Server even onbereikbaar terwijl de browser denkt dat hij online is: af en toe opnieuw proberen.
+    const timer = setInterval(() => sync.pending && navigator.onLine && flushOutbox(), 30000);
+    return () => {
+      outboxListeners.delete(countPending);
+      window.removeEventListener("online", changed);
+      window.removeEventListener("offline", changed);
+      clearInterval(timer);
+    };
+  }, [countPending, flushOutbox, sync.pending]);
 
   // Een open tabblad of app springt na middernacht vanzelf naar de nieuwe dag.
   useEffect(() => {
@@ -239,13 +351,23 @@ export function TakenProvider({ children }: { children: React.ReactNode }) {
 
   const addTasks = useCallback(
     async (inputs: Partial<Task>[]) => {
-      const data = await api<{ tasks: Task[]; sync?: string }>("/api/taken/tasks", {
-        method: "POST",
-        body: JSON.stringify({ tasks: inputs }),
-      });
-      mergeTasks(data.tasks);
-      if (data.sync === "fout") notify("Opgeslagen, maar niet in Google Agenda gezet");
-      return data.tasks;
+      // Het id maakt de browser zelf: dan is een taak die offline is gemaakt later dezelfde taak op de server.
+      const withIds = inputs.map((input) => ({ ...input, id: input.id || newId() }));
+      try {
+        const data = await api<{ tasks: Task[]; sync?: string }>(
+          "/api/taken/tasks",
+          { method: "POST", body: JSON.stringify({ tasks: withIds }) },
+          { queue: true }
+        );
+        mergeTasks(data.tasks);
+        if (data.sync === "fout") notify("Opgeslagen, maar niet in Google Agenda gezet");
+        return data.tasks;
+      } catch (err) {
+        if (!(err instanceof QueuedError)) throw err;
+        const local = withIds.map((input) => newTask(input)).filter(Boolean) as Task[];
+        mergeTasks(local);
+        return local;
+      }
     },
     [mergeTasks, notify]
   );
@@ -261,15 +383,17 @@ export function TakenProvider({ children }: { children: React.ReactNode }) {
       taskSeq.current.set(id, seq);
       const latest = () => taskSeq.current.get(id) === seq;
       try {
-        const data = await api<{ task: Task; created?: Task[]; removed?: string[]; sync?: string }>(`/api/taken/tasks/${id}`, {
-          method: "PATCH",
-          body: JSON.stringify({ ...patch, today: localToday() }),
-        });
+        const data = await api<{ task: Task; created?: Task[]; removed?: string[]; sync?: string }>(
+          `/api/taken/tasks/${id}`,
+          { method: "PATCH", body: JSON.stringify({ ...patch, today: localToday() }) },
+          { queue: true }
+        );
         mergeTasks([...(latest() ? [data.task] : []), ...(data.created || [])]);
         // Weer opengezette herhaling: de volgende keer die het afvinken had gemaakt is weg.
         if (data.removed?.length) setTasks((list) => list.filter((t) => !data.removed!.includes(t.id)));
         if (data.sync === "fout") notify("Opgeslagen, maar niet in Google Agenda gezet");
       } catch (err: any) {
+        if (err instanceof QueuedError) return; // offline: de wijziging blijft staan en gaat later mee
         if (latest()) mergeTasks([before]);
         notify(err.message);
       }
@@ -324,8 +448,9 @@ export function TakenProvider({ children }: { children: React.ReactNode }) {
       const before = tasksRef.current.find((t) => t.id === id);
       setTasks((list) => list.filter((t) => t.id !== id));
       try {
-        await api(`/api/taken/tasks/${id}`, { method: "DELETE" });
+        await api(`/api/taken/tasks/${id}`, { method: "DELETE" }, { queue: true });
       } catch (err: any) {
+        if (err instanceof QueuedError) return;
         if (before) mergeTasks([before]);
         notify(err.message);
       }
@@ -334,23 +459,34 @@ export function TakenProvider({ children }: { children: React.ReactNode }) {
   );
 
   const createNote = useCallback(async (input: Partial<Note>) => {
-    const data = await api<{ note: Note }>("/api/taken/notes", { method: "POST", body: JSON.stringify(input) });
-    setNotes((list) => [data.note, ...list]);
-    return data.note;
+    const withId = { ...input, id: input.id || newId() };
+    try {
+      const data = await api<{ note: Note }>("/api/taken/notes", { method: "POST", body: JSON.stringify(withId) }, { queue: true });
+      setNotes((list) => [data.note, ...list.filter((n) => n.id !== data.note.id)]);
+      return data.note;
+    } catch (err) {
+      if (!(err instanceof QueuedError)) throw err;
+      const local = newNote(withId);
+      setNotes((list) => [local, ...list]);
+      return local;
+    }
   }, []);
 
   const updateNote = useCallback(
     async (id: string, patch: Partial<Note>, base?: string) => {
       setNotes((list) => list.map((n) => (n.id === id ? { ...n, ...patch } : n)));
       try {
-        const data = await api<{ note: Note }>(`/api/taken/notes/${id}`, {
-          method: "PATCH",
-          body: JSON.stringify(base === undefined ? patch : { ...patch, base }),
-        });
+        const data = await api<{ note: Note }>(
+          `/api/taken/notes/${id}`,
+          { method: "PATCH", body: JSON.stringify(base === undefined ? patch : { ...patch, base }) },
+          { queue: true }
+        );
         // Alleen metadata overnemen; de tekst in de editor kan intussen verder zijn.
         setNotes((list) => list.map((n) => (n.id === id ? { ...n, updatedAt: data.note.updatedAt } : n)));
         return data.note;
       } catch (err: any) {
+        // Offline: lokaal bewaard, gaat later mee (een botsing wordt dan een kopie, zie flushOutbox).
+        if (err instanceof QueuedError) return notesRef.current.find((n) => n.id === id) as Note;
         if (err instanceof ApiError && err.status === 409 && err.data?.note) {
           const fresh = err.data.note as Note;
           setNotes((list) => list.map((n) => (n.id === id ? fresh : n)));
@@ -366,8 +502,9 @@ export function TakenProvider({ children }: { children: React.ReactNode }) {
       const before = notesRef.current.find((n) => n.id === id);
       setNotes((list) => list.filter((n) => n.id !== id));
       try {
-        await api(`/api/taken/notes/${id}`, { method: "DELETE" });
+        await api(`/api/taken/notes/${id}`, { method: "DELETE" }, { queue: true });
       } catch (err: any) {
+        if (err instanceof QueuedError) return;
         if (before) setNotes((list) => [before, ...list]);
         notify(err.message);
       }
@@ -538,8 +675,10 @@ export function TakenProvider({ children }: { children: React.ReactNode }) {
       stopFocus,
       focusOpen,
       palette,
+      sync,
     }),
     [
+      sync,
       editing,
       toast,
       focus,

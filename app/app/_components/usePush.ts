@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { SW_URL } from "./device";
 import { api } from "./TakenContext";
 
 // Pushmeldingen op dit apparaat: toestemming vragen, abonneren bij de push-dienst van de browser
@@ -43,7 +44,7 @@ export function usePush(publicKey: string | null) {
       await refresh();
       throw new Error("Geen toestemming voor meldingen.");
     }
-    const reg = (await navigator.serviceWorker.getRegistration("/app")) || (await navigator.serviceWorker.register("/taken-sw.js", { scope: "/app" }));
+    const reg = (await navigator.serviceWorker.getRegistration("/app")) || (await navigator.serviceWorker.register(SW_URL, { scope: "/app" }));
     await navigator.serviceWorker.ready;
     const sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: keyBytes(publicKey) });
     await api("/api/taken/push", { method: "POST", body: JSON.stringify({ action: "subscribe", subscription: sub.toJSON() }) });

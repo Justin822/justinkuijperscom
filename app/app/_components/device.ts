@@ -1,4 +1,7 @@
-// Gedeelde browserhulpjes: schermbreedte en lokale voorkeuren.
+// Gedeelde browserhulpjes: schermbreedte, lokale voorkeuren en de service worker.
+
+/** De service worker van deze build (zie next.config.js). */
+export const SW_URL = `/taken-sw.js?v=${process.env.NEXT_PUBLIC_BUILD_ID || "dev"}`;
 
 /** Telefoon-indeling (onderbalk, Lijst/Dag-wissel); gelijk aan het 900px-breekpunt in taken.css. */
 export const PHONE_QUERY = "(max-width: 899px)";

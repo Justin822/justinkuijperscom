@@ -77,7 +77,7 @@ export function newTask(input: any, now = Date.now()): Task | null {
   if (!patch.title) return null;
   return applyPatch(
     {
-      id: newId(now),
+      id: clientId(input?.id) || newId(now),
       title: patch.title,
       areaId: null,
       project: null,
@@ -110,6 +110,13 @@ export function newTask(input: any, now = Date.now()): Task | null {
 
 export const newId = (now = Date.now()) => `${now.toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 
+/**
+ * Een id dat de browser zelf heeft gemaakt (offline aangemaakt, later verstuurd), als het er geldig uitziet.
+ * Zo krijgt een taak overal hetzelfde id en wordt hij bij opnieuw versturen nooit dubbel.
+ */
+export const clientId = (value: unknown): string | null =>
+  typeof value === "string" && /^[0-9a-z]{6,12}-[0-9a-z]{3,8}$/.test(value) ? value : null;
+
 /** Alleen de geldige notitievelden. */
 export function cleanNote(input: any): Partial<Note> {
   const patch: Partial<Note> = {};
@@ -122,5 +129,5 @@ export function cleanNote(input: any): Partial<Note> {
 }
 
 export function newNote(input: any, now = Date.now()): Note {
-  return { id: newId(now), body: "", areaId: null, pinned: false, createdAt: now, updatedAt: now, ...cleanNote(input) };
+  return { id: clientId(input?.id) || newId(now), body: "", areaId: null, pinned: false, createdAt: now, updatedAt: now, ...cleanNote(input) };
 }

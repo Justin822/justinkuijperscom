@@ -38,7 +38,10 @@ export async function middleware(request: NextRequest) {
       return NextResponse.json({ error: "Log eerst in." }, { status: 401 });
     }
     url.pathname = "/app/toegang";
-    return NextResponse.rewrite(url);
+    // De service worker mag het inlogscherm nooit bewaren als de app.
+    const login = NextResponse.rewrite(url);
+    login.headers.set("x-planner-login", "1");
+    return login;
   }
 
   if (!PROTECTED.test(url.pathname) || OPEN.includes(url.pathname)) return pass();

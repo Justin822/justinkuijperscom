@@ -10,12 +10,13 @@ import { SearchIcon } from "./icons";
 import { EXTRA, NAV } from "./nav";
 import { useTakenActions, useTakenData, useTakenUi } from "./TakenContext";
 import TaskSheet from "./TaskSheet";
+import { SW_URL } from "./device";
 
 export default function Shell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname() || "";
   const { tasks, addRef } = useTakenData();
   const { openTask, openPalette, undoLast } = useTakenActions();
-  const { toast, editing, palette } = useTakenUi();
+  const { toast, editing, palette, sync } = useTakenUi();
   const inboxCount = tasks.filter((t) => t.status === "inbox").length;
 
   // Sneltoetsen: ⌘K of / zoekt, N voegt toe, Escape sluit.
@@ -53,7 +54,8 @@ export default function Shell({ children }: { children: React.ReactNode }) {
   // Service worker voor de app op je beginscherm.
   useEffect(() => {
     if ("serviceWorker" in navigator && process.env.NODE_ENV === "production") {
-      navigator.serviceWorker.register("/taken-sw.js", { scope: "/app" }).catch(() => {});
+      // ?v=build: een nieuwe deploy installeert een nieuwe service worker met een eigen, verse cache.
+      navigator.serviceWorker.register(SW_URL, { scope: "/app" }).catch(() => {});
     }
   }, []);
 
@@ -103,6 +105,12 @@ export default function Shell({ children }: { children: React.ReactNode }) {
           </Link>
         ))}
       </nav>
+      {(!sync.online || sync.pending > 0) && (
+        <div className="tk-sync" role="status" aria-live="polite">
+          {!sync.online ? "Offline" : "Bezig met versturen"}
+          {sync.pending > 0 && ` · ${sync.pending} ${sync.pending === 1 ? "wijziging wacht" : "wijzigingen wachten"}`}
+        </div>
+      )}
       <FocusBar />
       {editing && <TaskSheet key={editing} id={editing} />}
       {palette && <CommandPalette />}

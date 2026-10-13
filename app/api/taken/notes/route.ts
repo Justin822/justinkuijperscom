@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getNotes, saveNote } from "@/lib/taken/store";
+import { getNote, getNotes, saveNote } from "@/lib/taken/store";
 import { fail, noStore } from "@/lib/taken/server";
 import { newNote } from "@/lib/taken/validate";
 import { makeDelta, sinceParam } from "@/lib/taken/delta";
@@ -24,6 +24,9 @@ export async function POST(request: Request) {
   if (denied) return denied;
   try {
     const note = newNote(await request.json().catch(() => ({})));
+    // Opnieuw verstuurd met hetzelfde id: de bestaande notitie niet overschrijven.
+    const existing = await getNote(note.id);
+    if (existing) return NextResponse.json({ note: existing });
     await saveNote(note);
     return NextResponse.json({ note });
   } catch (error) {

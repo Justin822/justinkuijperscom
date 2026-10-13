@@ -2,7 +2,9 @@
 // pagina's zien als je even geen verbinding hebt (de API wordt nooit gecachet)
 // en toont pushmeldingen, met knoppen die direct iets doen zonder de app te openen.
 
-const CACHE = "planner-v3";
+// Elke build een eigen cache (?v=… bij het registreren), zodat een deploy nooit oude bestanden laat staan.
+const VERSION = new URL(self.location.href).searchParams.get("v") || "dev";
+const CACHE = `planner-${VERSION}`;
 
 self.addEventListener("install", () => self.skipWaiting());
 
@@ -41,7 +43,8 @@ self.addEventListener("fetch", (event) => {
     event.respondWith(
       fetch(request)
         .then((res) => {
-          if (res.ok) {
+          // Het inlogscherm (zonder sessie) nooit bewaren als de app.
+          if (res.ok && !res.headers.get("x-planner-login")) {
             const copy = res.clone();
             caches.open(CACHE).then((c) => c.put(request, copy));
           }

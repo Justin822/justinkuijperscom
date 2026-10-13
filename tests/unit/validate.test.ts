@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { applyPatch, cleanNote, cleanPatch, newTask } from "@/lib/taken/validate";
+import { applyPatch, cleanNote, cleanPatch, newNote, newTask } from "@/lib/taken/validate";
 import { task } from "./helpers";
 
 describe("cleanPatch", () => {
@@ -42,5 +42,13 @@ describe("newTask", () => {
 describe("cleanNote", () => {
   it("houdt alleen geldige velden", () => {
     expect(cleanNote({ body: "x", pinned: 1, areaId: "cliq", foo: 1 })).toEqual({ body: "x", pinned: true, areaId: "cliq" });
+  });
+});
+
+describe("clientId", () => {
+  it("neemt een geldig id van de browser over", () => {
+    expect(newTask({ title: "x", id: "mgq1abc-x7k2p9" })!.id).toBe("mgq1abc-x7k2p9");
+    expect(newTask({ title: "x", id: "../../etc" })!.id).not.toBe("../../etc");
+    expect(newNote({ id: "mgq1abc-x7k2p9" }).id).toBe("mgq1abc-x7k2p9");
   });
 });
