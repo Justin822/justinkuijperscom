@@ -16,7 +16,9 @@ export async function GET(request: Request) {
     return NextResponse.redirect(new URL("/app/instellingen?google=niet-ingesteld", redirect));
   }
   const state = randomBytes(16).toString("hex");
-  const response = NextResponse.redirect(authUrl(redirect, state));
+  // ?mail=1: ook het recht voor de mail-radar vragen (Gmail-labels).
+  const withMail = new URL(request.url).searchParams.get("mail") === "1";
+  const response = NextResponse.redirect(authUrl(redirect, state, withMail));
   response.cookies.set(STATE_COOKIE, state, {
     httpOnly: true,
     sameSite: "lax",

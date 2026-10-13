@@ -1,4 +1,4 @@
-import { canEdit, googleConfigured } from "./google";
+import { canEdit, canReadMail, googleConfigured } from "./google";
 import type { PublicSettings, Settings } from "./types";
 
 // Wat de browser van de instellingen mag zien: geen tokens en geen volledige agenda-links.
@@ -28,5 +28,12 @@ export function publicSettings(s: Settings): PublicSettings {
       defaultCalendarId: s.google?.defaultCalendarId || null,
     },
     captureTokens: (s.captureTokens || []).map(({ id, name, createdAt, lastUsedAt }) => ({ id, name, createdAt, lastUsedAt })),
+    mail: {
+      available: canReadMail(s.google),
+      enabled: Boolean(s.mail?.enabled),
+      lastRunAt: s.mail?.lastRunAt ?? null,
+      lastError: s.mail?.lastError ?? null,
+      lastCount: s.mail?.lastCount ?? 0,
+    },
   };
 }

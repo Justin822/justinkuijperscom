@@ -44,3 +44,16 @@ test("gelijktijdige wijzigingen aan één taak blijven allemaal staan", async ({
   const t = (await (await app.request.get("/api/taken/tasks")).json()).tasks[0];
   expect(t).toMatchObject({ estimate: 45, impact: "hoog", note: "context", project: "Website" });
 });
+
+test("de geplande ronde weigert zonder geheim", async ({ playwright, baseURL }) => {
+  const api = await playwright.request.newContext({ baseURL });
+  expect((await api.get("/api/taken/cron")).status()).toBe(401);
+  expect((await api.get("/api/taken/cron", { headers: { Authorization: "Bearer fout" } })).status()).toBe(401);
+  await api.dispose();
+});
+
+test("mail-radar vraagt eerst om Google te koppelen", async ({ app }) => {
+  await app.goto("/app/instellingen");
+  await expect(app.getByRole("heading", { name: "Mail-radar" })).toBeVisible();
+  await expect(app.getByText("Koppel eerst Google Agenda hierboven.")).toBeVisible();
+});

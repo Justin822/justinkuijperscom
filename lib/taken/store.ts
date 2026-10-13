@@ -41,6 +41,7 @@ type FileData = {
   focus?: Record<string, FocusLog>;
   sessions?: Record<string, Session>;
   archive?: Record<string, Task>;
+  mailSeen?: string[];
   settings?: Settings;
 };
 
@@ -51,7 +52,7 @@ const dataFile =
 async function readFile(): Promise<FileData> {
   try {
     const data = JSON.parse(await fs.readFile(dataFile, "utf8"));
-    return { tasks: data.tasks || {}, days: data.days || {}, notes: data.notes || {}, focus: data.focus || {}, sessions: data.sessions || {}, settings: data.settings };
+    return { ...data, tasks: data.tasks || {}, days: data.days || {}, notes: data.notes || {}, focus: data.focus || {}, sessions: data.sessions || {} };
   } catch {
     return { tasks: {}, days: {}, notes: {} };
   }
@@ -469,4 +470,22 @@ export async function archiveDoneTasks(now = Date.now()): Promise<number> {
     moved += Number(await evalScript(MOVE_TO_ARCHIVE, [TASKS_KEY, ARCHIVE_KEY], [flat[i], flat[i + 1]]));
   }
   return moved;
+}
+
+// Mail-radar: welke Gmail-berichten al een taak werden (nooit dubbel, ook als het label blijft hangen).
+const MAIL_SEEN_KEY = "taken:mail:seen";
+
+export async function isMailSeen(id: string): Promise<boolean> {
+  if (storageKind === "file") return Boolean((await readFile()).mailSeen?.includes(id));
+  return Number(await redis(["SISMEMBER", MAIL_SEEN_KEY, id])) === 1;
+}
+
+export async function markMailSeen(id: string) {
+  if (storageKind === "file") {
+    await editFile((data) => {
+      data.mailSeen = Array.from(new Set([...(data.mailSeen || []), id])).slice(-5000);
+    });
+    return;
+  }
+  await redis(["SADD", MAIL_SEEN_KEY, id]);
 }

@@ -12,7 +12,8 @@ const OPEN = ["/api/rankingthestars/login", "/rankingthestars/toegang"];
 
 const TAKEN_PROTECTED = /^\/(app|api\/taken)(\/|$)/;
 // Snel invoeren werkt met een eigen sleutel (zie app/api/taken/capture), niet met het cookie.
-const TAKEN_OPEN = ["/api/taken/login", "/api/taken/logout", "/app/toegang", "/api/taken/capture", "/api/taken/capture/today"];
+// De geplande ronde (cron) heeft een eigen geheim (CRON_SECRET).
+const TAKEN_OPEN = ["/api/taken/login", "/api/taken/logout", "/app/toegang", "/api/taken/capture", "/api/taken/capture/today", "/api/taken/cron"];
 
 export async function middleware(request: NextRequest) {
   const url = request.nextUrl.clone();

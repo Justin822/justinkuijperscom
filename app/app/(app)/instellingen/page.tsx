@@ -4,6 +4,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { WORKDAY } from "@/lib/taken/agenda";
 import { httpShortcutsExport } from "@/lib/taken/http-shortcuts";
+import { readLocal, writeLocal } from "../../_components/device";
 import type { PublicSettings } from "@/lib/taken/types";
 import { TrashIcon } from "../../_components/icons";
 import PageHeader from "../../_components/PageHeader";
@@ -16,6 +17,8 @@ const FLASH: Record<string, string> = {
   geannuleerd: "Koppelen geannuleerd.",
   "niet-ingesteld": "Google is nog niet ingesteld. Volg de stappen hieronder.",
 };
+
+const MAIL_INTENT = "tk-mail-aanzetten";
 
 type SessionRow = { id: string; device: string; createdAt: number; lastSeenAt: number; current: boolean };
 
@@ -64,6 +67,20 @@ export default function SettingsPage() {
     loadSessions();
   }, []);
 
+  const checkMail = async () => {
+    setBusy("mailcheck");
+    try {
+      const data = await api<{ tasks: unknown[]; error: string | null }>("/api/taken/mail", { method: "POST", body: JSON.stringify({ force: true }) });
+      notify(data.error ? `Mail-radar: ${data.error}` : data.tasks.length ? `${data.tasks.length} nieuwe taken uit je mail` : "Geen nieuwe mails met het label Planner");
+      const st = await api<{ settings: PublicSettings }>("/api/taken/settings");
+      setSettings(st.settings);
+    } catch (err: any) {
+      notify(err.message);
+    } finally {
+      setBusy(null);
+    }
+  };
+
   const logout = async (id: string, label: string) => {
     try {
       await api(`/api/taken/sessions?id=${encodeURIComponent(id)}`, { method: "DELETE" });
@@ -89,7 +106,15 @@ export default function SettingsPage() {
     );
     router.replace(pathname || "/app/instellingen");
     // Na koppelen meteen je agenda's ophalen en de agenda "Planner" klaarzetten.
-    if (google === "gekoppeld") act("googleRefresh", {}, "refresh");
+    if (google === "gekoppeld") {
+      act("googleRefresh", {}, "refresh").then(() => {
+        // Teruggekomen van "Mail-radar aanzetten": meteen aanzetten.
+        if (readLocal(MAIL_INTENT) === "1") {
+          writeLocal(MAIL_INTENT, null);
+          act("mailEnable", {}, "mail").then((d) => d?.settings.mail.enabled && notify("Mail-radar staat aan"));
+        }
+      });
+    }
     else api<{ settings: PublicSettings }>("/api/taken/settings").then((d) => setSettings(d.settings)).catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -442,6 +467,62 @@ export default function SettingsPage() {
               {busy === "capture" ? "Bezig…" : "Nieuwe sleutel"}
             </button>
           </form>
+        )}
+      </Section>
+
+      <Section
+        title="Mail-radar"
+        intro="Geef een mail in Gmail het label Planner en hij staat als taak in je Inbox, met een link terug naar de mail. Het onderwerp wordt gelezen als snelle invoer: 'Offerte vrijdag, Appèl' krijgt meteen een deadline en gebied."
+      >
+        {!g.connected ? (
+          <p className="tk-muted text-sm">Koppel eerst Google Agenda hierboven.</p>
+        ) : !settings.mail.available ? (
+          <div>
+            <p className="tk-muted text-sm">Daarvoor vraagt Google één keer extra toestemming om labels te lezen en te wisselen. De app leest alleen mails met het label Planner.</p>
+            <a
+              href="/api/taken/google/connect?mail=1"
+              className="tk-btn mt-3"
+              onClick={() => writeLocal(MAIL_INTENT, "1")}
+            >
+              Mail-radar aanzetten
+            </a>
+          </div>
+        ) : (
+          <div className="text-sm">
+            <label className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                checked={settings.mail.enabled}
+                disabled={!!busy}
+                onChange={(e) => act(e.target.checked ? "mailEnable" : "mailDisable", {}, "mail")}
+                aria-label="Mail-radar aan"
+              />
+              <span className="font-medium">Mail-radar aan</span>
+            </label>
+            {settings.mail.enabled && (
+              <>
+                <p className="tk-faint mt-2 text-xs">
+                  {settings.mail.lastError
+                    ? `Laatste poging mislukt: ${settings.mail.lastError}`
+                    : settings.mail.lastRunAt
+                    ? `Laatst gecontroleerd ${new Date(settings.mail.lastRunAt).toLocaleString("nl-NL", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}${settings.mail.lastCount ? ` · ${settings.mail.lastCount} nieuw` : ""}`
+                    : "Nog niet gecontroleerd"}
+                </p>
+                <button type="button" className="tk-btn tk-btn-ghost tk-btn-sm mt-3" disabled={!!busy} onClick={checkMail}>
+                  {busy === "mailcheck" ? "Bezig…" : "Nu controleren"}
+                </button>
+              </>
+            )}
+            <details className="tk-muted mt-3 leading-6">
+              <summary className="cursor-pointer">Hoe werkt het?</summary>
+              <ul className="ml-5 list-disc">
+                <li><strong>Planner</strong>: wordt een taak in je Inbox. Een mail met ster krijgt hoge impact.</li>
+                <li><strong>Planner/Wachten</strong>: voor een mail die je zelf stuurde; wordt &quot;wachten op&quot; de ontvanger, nabellen over 3 dagen.</li>
+                <li>Daarna krijgt de mail het label <strong>Planner/Verwerkt</strong>. De labels maakt de app zelf aan.</li>
+                <li>De app kijkt als je hem opent, en elke ochtend vroeg (als CRON_SECRET is ingesteld).</li>
+              </ul>
+            </details>
+          </div>
         )}
       </Section>
 

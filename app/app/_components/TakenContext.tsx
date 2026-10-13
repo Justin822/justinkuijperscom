@@ -159,12 +159,22 @@ export function TakenProvider({ children }: { children: React.ReactNode }) {
       setNotes(n.notes);
       if (st) setSettingsState(st.settings);
       setError(null);
+      // Mail-radar: nieuwe gelabelde mails als taken ophalen (de server doet dit hooguit eens per 2 minuten).
+      if (st?.settings.mail.enabled) {
+        api<{ tasks: Task[] }>("/api/taken/mail", { method: "POST", body: "{}" })
+          .then((m) => {
+            if (!m.tasks.length) return;
+            setTasks((list) => [...list.filter((x) => !m.tasks.some((y) => y.id === x.id)), ...m.tasks]);
+            notify(m.tasks.length === 1 ? "1 taak uit je mail" : `${m.tasks.length} taken uit je mail`);
+          })
+          .catch(() => {});
+      }
     } catch (err: any) {
       setError(err.message);
     } finally {
       setLoaded(true);
     }
-  }, []);
+  }, [notify]);
 
   const reloadPlan = useCallback(async () => {
     try {

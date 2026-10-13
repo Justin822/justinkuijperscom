@@ -135,11 +135,22 @@ export type GoogleLink = {
 /** Sleutel waarmee een snelknop of ander apparaat taken in je Inbox mag zetten (alleen de hash wordt bewaard). */
 export type CaptureToken = { id: string; name: string; hash: string; createdAt: number; lastUsedAt: number | null };
 
+/** Mail-radar: gelabelde mails in Gmail worden taken. */
+export type MailSettings = {
+  enabled: boolean;
+  /** Gmail-label-id's (worden aangemaakt als ze er nog niet zijn). */
+  labels: { taak: string; wachten: string; verwerkt: string } | null;
+  lastRunAt: number | null;
+  lastError: string | null;
+  lastCount: number;
+};
+
 export type Settings = {
   icsSources: IcsSource[];
   workday: { start: string; end: string };
   google: GoogleLink | null;
   captureTokens?: CaptureToken[];
+  mail?: MailSettings;
 };
 
 /** Wat de browser van de instellingen te zien krijgt: geen tokens, geen volledige links. */
@@ -158,4 +169,5 @@ export type PublicSettings = {
     defaultCalendarId: string | null;
   };
   captureTokens: { id: string; name: string; createdAt: number; lastUsedAt: number | null }[];
+  mail: { available: boolean; enabled: boolean; lastRunAt: number | null; lastError: string | null; lastCount: number };
 };

@@ -3,6 +3,7 @@ import { clearIcsCache, isPublicHttpsUrl, normalizeIcsUrl, testIcs } from "@/lib
 import { disconnect, refreshCalendars, selectCalendars, setDefaultCalendar } from "@/lib/taken/google";
 import { fail, noStore } from "@/lib/taken/server";
 import { hashToken, makeToken } from "@/lib/taken/capture";
+import { DEFAULT_MAIL } from "@/lib/taken/gmail";
 import { publicSettings } from "@/lib/taken/settings";
 import { getSettings, updateSettings } from "@/lib/taken/store";
 import { newId } from "@/lib/taken/validate";
@@ -88,6 +89,12 @@ export async function POST(request: Request) {
       }
       case "captureRevoke": {
         await updateSettings((s) => ({ ...s, captureTokens: (s.captureTokens || []).filter((t) => t.id !== body.id) }));
+        return reply();
+      }
+      case "mailEnable":
+      case "mailDisable": {
+        const enabled = body.action === "mailEnable";
+        await updateSettings((s) => ({ ...s, mail: { ...DEFAULT_MAIL, ...(s.mail || {}), enabled, lastError: null } }));
         return reply();
       }
       case "googleDisconnect": {

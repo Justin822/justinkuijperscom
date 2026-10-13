@@ -34,7 +34,7 @@ async function call(command: string[]): Promise<unknown> {
 }
 
 // Alleen commando's die je veilig twee keer kunt sturen; INCR, HINCRBY en scripts niet (dan telt iets dubbel).
-const IDEMPOTENT = new Set(["GET", "MGET", "HGET", "HGETALL", "HMGET", "SET", "HSET", "HDEL", "DEL", "EXPIRE"]);
+const IDEMPOTENT = new Set(["GET", "MGET", "HGET", "HGETALL", "HMGET", "SET", "HSET", "HDEL", "DEL", "EXPIRE", "SISMEMBER", "SADD"]);
 
 /** Eén Redis-commando. Lezen en overschrijven wordt bij een netwerkfout of time-out één keer opnieuw geprobeerd. */
 export async function redis(command: string[]): Promise<unknown> {

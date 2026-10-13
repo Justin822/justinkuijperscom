@@ -18,6 +18,9 @@ const SCOPES = [
   "https://www.googleapis.com/auth/calendar.events",
 ];
 const EVENTS_SCOPE = "https://www.googleapis.com/auth/calendar.events";
+/** Mail-radar (optioneel): labels lezen en een verwerkte mail een ander label geven. */
+export const MAIL_SCOPE = "https://www.googleapis.com/auth/gmail.modify";
+export const canReadMail = (link: GoogleLink | null | undefined) => Boolean(link?.scopes?.includes(MAIL_SCOPE));
 /** Mag de app afspraken bewerken? Oudere koppelingen hebben dat recht nog niet. */
 export const canEdit = (link: GoogleLink | null | undefined) => Boolean(link?.scopes?.includes(EVENTS_SCOPE));
 export const PLANNER_NAME = "Planner";
@@ -40,12 +43,13 @@ export function redirectUri(request: Request) {
   return `${proto}://${host}/api/taken/google/callback`;
 }
 
-export function authUrl(redirect: string, state: string) {
+/** Toestemmingsscherm van Google; met `withMail` ook het recht voor de mail-radar. */
+export function authUrl(redirect: string, state: string, withMail = false) {
   const params = new URLSearchParams({
     client_id: clientId(),
     redirect_uri: redirect,
     response_type: "code",
-    scope: SCOPES.join(" "),
+    scope: [...SCOPES, ...(withMail ? [MAIL_SCOPE] : [])].join(" "),
     access_type: "offline",
     prompt: "consent",
     include_granted_scopes: "true",
@@ -126,10 +130,11 @@ async function accessToken(link: GoogleLink): Promise<string> {
   }
 }
 
-async function api<T = any>(link: GoogleLink, path: string, label: string, init: RequestInit = {}, retried = false): Promise<T> {
+/** Een Google-API aanroepen (pad vanaf www.googleapis.com, bijv. "/gmail/v1/users/me/labels"). */
+export async function googleApi<T = any>(link: GoogleLink, path: string, label: string, init: RequestInit = {}, retried = false): Promise<T> {
   const token = await accessToken(link);
   const { ok, status, data } = await request(
-    `${API_BASE}/calendar/v3${path}`,
+    `${API_BASE}${path}`,
     {
       ...init,
       headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json", ...(init.headers || {}) },
@@ -138,11 +143,14 @@ async function api<T = any>(link: GoogleLink, path: string, label: string, init:
   );
   if (status === 401 && !retried) {
     cachedToken = null;
-    return api(link, path, label, init, true);
+    return googleApi(link, path, label, init, true);
   }
-  if (!ok) throw new GoogleError(data.error?.message || `Google Agenda ${status}`, status);
+  if (!ok) throw new GoogleError(data.error?.message || `Google ${status}`, status);
   return data as T;
 }
+
+const api = <T = any>(link: GoogleLink, path: string, label: string, init: RequestInit = {}) =>
+  googleApi<T>(link, `/calendar/v3${path}`, label, init);
 
 const enc = encodeURIComponent;
 

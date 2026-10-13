@@ -107,6 +107,14 @@ Bij een terugkerende taak staat de volgende keer klaar zodra je hem afvinkt. Mee
 
 Elk apparaat krijgt een eigen sleutel; alleen een hash wordt bewaard en intrekken kan in Instellingen.
 
+### Mail-radar (Gmail)
+
+Geef een mail in Gmail het label **Planner** en hij staat als taak in je Inbox, met een link terug naar de mail. Het onderwerp gaat door dezelfde parser als het invoerveld, dus `Offerte vrijdag, Appèl` krijgt meteen een deadline en gebied. Een mail met ster krijgt hoge impact. **Planner/Wachten** (voor een mail die je zelf stuurde) wordt "wachten op" de ontvanger, nabellen over 3 dagen. Daarna krijgt de mail het label **Planner/Verwerkt**; de labels maakt de app zelf aan.
+
+Aanzetten: **Instellingen → Mail-radar → Mail-radar aanzetten**. Google vraagt dan één keer om het extra recht `gmail.modify`. Eenmalig in Google Cloud Console: APIs en services → Bibliotheek → **Gmail API** inschakelen, en het recht toevoegen aan het OAuth-toestemmingsscherm.
+
+De app kijkt als je hem opent (hooguit eens per 2 minuten) en elke ochtend vroeg via Vercel Cron (`vercel.json`), als `CRON_SECRET` is ingesteld. Vaker op de achtergrond kan met een externe planner (bijv. Upstash QStash) die `GET /api/taken/cron` aanroept met `Authorization: Bearer <CRON_SECRET>`.
+
 ### Setup op Vercel
 
 1. `TAKEN_PASSWORD`: wachtwoord voor de app. Lokaal is het `taken`.
