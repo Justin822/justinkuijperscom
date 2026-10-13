@@ -2,6 +2,7 @@
 
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
+import { WORKDAY } from "@/lib/taken/agenda";
 import { httpShortcutsExport } from "@/lib/taken/http-shortcuts";
 import type { PublicSettings } from "@/lib/taken/types";
 import { TrashIcon } from "../../_components/icons";
@@ -50,7 +51,7 @@ export default function SettingsPage() {
   const [icsName, setIcsName] = useState("");
   const [icsUrl, setIcsUrl] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
-  const [workday, setWorkday] = useState(settings?.workday || { start: "09:00", end: "17:30" });
+  const [workday, setWorkday] = useState(settings?.workday || WORKDAY);
   const [keyName, setKeyName] = useState("");
   const [newKey, setNewKey] = useState<string | null>(null);
   const [sessions, setSessions] = useState<SessionRow[] | null>(null);

@@ -9,6 +9,7 @@ import type { Task } from "@/lib/taken/types";
 import { NoteIcon, PlayIcon, PlusIcon, SearchIcon } from "./icons";
 import { EXTRA, NAV } from "./nav";
 import { useTaken } from "./TakenContext";
+import { searchable } from "@/lib/taken/text";
 
 // ⌘K: zoeken in taken en notities, iets toevoegen of naar een scherm gaan.
 
@@ -21,7 +22,6 @@ type Item = {
   run: () => void;
 };
 
-const norm = (s: string) => s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
 
 export default function CommandPalette() {
   const router = useRouter();
@@ -43,7 +43,7 @@ export default function CommandPalette() {
   };
 
   const items = useMemo<Item[]>(() => {
-    const q = norm(query.trim());
+    const q = searchable(query.trim());
     const list: Item[] = [];
     const entries = query.trim() ? splitEntries(query).map((e) => parseTask(e, today)).filter((p) => p.title) : [];
 
@@ -63,7 +63,7 @@ export default function CommandPalette() {
     if (adding) return list;
 
     if (q) {
-      const match = (s: string | null | undefined) => Boolean(s && norm(s).includes(q));
+      const match = (s: string | null | undefined) => Boolean(s && searchable(s).includes(q));
       tasks
         .filter((t) => match(t.title) || match(t.project) || match(t.note) || match(t.waitingOn))
         .sort((a, b) => Number(a.status === "af") - Number(b.status === "af") || b.updatedAt - a.updatedAt)
@@ -136,7 +136,7 @@ export default function CommandPalette() {
         run: () => router.push(href),
       })),
     ];
-    list.push(...commands.filter((c) => !q || norm(c.label).includes(q)));
+    list.push(...commands.filter((c) => !q || searchable(c.label).includes(q)));
     return list;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [query, adding, tasks, notes, today, plan]);

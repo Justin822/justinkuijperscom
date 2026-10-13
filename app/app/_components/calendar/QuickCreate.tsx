@@ -7,6 +7,7 @@ import Popover, { type Anchor } from "../Popover";
 import { useTaken } from "../TakenContext";
 import { blockStartOf, durationLabel, fmt, localMs } from "./time";
 import { useEvents } from "./useEvents";
+import { readLocal, writeLocal } from "../device";
 
 type Kind = "taak" | "afspraak";
 const KIND_KEY = "tk-create-kind";
@@ -37,19 +38,11 @@ export default function QuickCreate({
 
   // De vorige keuze (taak of afspraak) onthouden.
   useEffect(() => {
-    try {
-      if (canEvent && localStorage.getItem(KIND_KEY) === "afspraak") setKind("afspraak");
-    } catch {
-      // geen opslag beschikbaar
-    }
+    if (canEvent && readLocal(KIND_KEY) === "afspraak") setKind("afspraak");
   }, [canEvent]);
   const choose = (k: Kind) => {
     setKind(k);
-    try {
-      localStorage.setItem(KIND_KEY, k);
-    } catch {
-      // geen opslag beschikbaar
-    }
+    writeLocal(KIND_KEY, k);
   };
 
   const save = async () => {

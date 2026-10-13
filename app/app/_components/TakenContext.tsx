@@ -4,6 +4,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { addDays, localToday } from "@/lib/taken/dates";
 import { WORKDAY } from "@/lib/taken/agenda";
 import type { CalendarEvent, DayPlan, Note, PublicSettings, Task } from "@/lib/taken/types";
+import { readLocal, writeLocal } from "./device";
 
 // Alle taken en notities staan in de browser; wijzigingen zijn direct zichtbaar
 // en gaan op de achtergrond naar de server (bij een fout terug naar de oude stand).
@@ -83,20 +84,14 @@ export const focusElapsed = (f: Focus, now = Date.now()) => f.elapsed + (f.runni
 
 function readFocus(): Focus | null {
   try {
-    const raw = localStorage.getItem(FOCUS_KEY);
+    const raw = readLocal(FOCUS_KEY);
     return raw ? JSON.parse(raw) : null;
   } catch {
     return null;
   }
 }
-function writeFocus(f: Focus | null) {
-  try {
-    if (f) localStorage.setItem(FOCUS_KEY, JSON.stringify(f));
-    else localStorage.removeItem(FOCUS_KEY);
-  } catch {
-    // privévenster: timer werkt, maar overleeft geen herlaadbeurt
-  }
-}
+// Zonder opslag (privévenster) werkt de timer, maar overleeft hij geen herlaadbeurt.
+const writeFocus = (f: Focus | null) => writeLocal(FOCUS_KEY, f ? JSON.stringify(f) : null);
 
 export function TakenProvider({ children }: { children: React.ReactNode }) {
   const [tasks, setTasks] = useState<Task[]>([]);

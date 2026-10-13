@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
-import { addDays, formatRelative, MONTHS, weekday, WEEKDAYS_SHORT } from "@/lib/taken/dates";
+import { addDays, formatRelative, isoWeek, MONTHS, weekday, WEEKDAYS_SHORT } from "@/lib/taken/dates";
 import { computeReview } from "@/lib/taken/review";
 import type { DayPlan } from "@/lib/taken/types";
 import { ChevronLeftIcon, ChevronRightIcon } from "../../_components/icons";
@@ -14,13 +14,6 @@ import { api, useTaken } from "../../_components/TakenContext";
 
 type ReviewData = { dates: string[]; plans: (DayPlan | null)[]; focus: Record<string, number>[] };
 
-/** ISO-weeknummer. */
-function weekNumber(monday: string) {
-  const thursday = addDays(monday, 3);
-  const jan4 = `${thursday.slice(0, 4)}-01-04`;
-  const firstMonday = addDays(jan4, -((weekday(jan4) + 6) % 7));
-  return Math.floor((Date.parse(thursday) - Date.parse(firstMonday)) / (7 * 86400000)) + 1;
-}
 
 function Stat({ value, total, label }: { value: React.ReactNode; total?: number; label: string }) {
   return (
@@ -54,7 +47,7 @@ export default function ReviewPage() {
   }, [monday, notify]);
 
   const review = useMemo(() => (data ? computeReview(data.dates, data.plans, tasks, undefined, data.focus) : null), [data, tasks]);
-  const week = weekNumber(monday);
+  const week = isoWeek(monday);
   const sunday = addDays(monday, 6);
   const range = `${Number(monday.slice(8))} ${MONTHS[Number(monday.slice(5, 7)) - 1].slice(0, 3)} – ${Number(sunday.slice(8))} ${MONTHS[Number(sunday.slice(5, 7)) - 1].slice(0, 3)}`;
   const workdaysSoFar = Array.from({ length: 5 }, (_, i) => addDays(monday, i)).filter((d) => d <= today).length;

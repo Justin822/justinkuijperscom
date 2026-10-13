@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { addDays, diffDays, formatRelative, isIsoDate, makeDate, nextWeekday, weekday } from "@/lib/taken/dates";
+import { addDays, diffDays, formatRelative, isIsoDate, isoWeek, makeDate, mondayOf, nextWeekday, weekday } from "@/lib/taken/dates";
 import { TODAY } from "./helpers";
 
 describe("dates", () => {
@@ -28,5 +28,15 @@ describe("dates", () => {
     expect(formatRelative("2026-10-12", TODAY)).toBe("gisteren");
     expect(formatRelative("2026-10-16", TODAY)).toBe("vr 16 okt");
     expect(formatRelative("2027-01-05", TODAY)).toBe("di 5 jan 2027");
+  });
+});
+
+describe("isoWeek", () => {
+  it("klopt rond de jaarwisseling", () => {
+    expect(isoWeek("2026-10-13")).toBe(42);
+    expect(isoWeek("2026-01-01")).toBe(1);
+    expect(isoWeek("2027-01-01")).toBe(53);
+    expect(isoWeek("2024-12-30")).toBe(1);
+    expect(mondayOf("2026-10-18")).toBe("2026-10-12");
   });
 });

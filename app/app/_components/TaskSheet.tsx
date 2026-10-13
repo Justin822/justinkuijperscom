@@ -160,7 +160,7 @@ export default function TaskSheet({ id }: { id: string }) {
 
         <div className="mt-5 flex flex-col gap-5">
           <Field label="Gebied">
-            <AreaPills value={draft.areaId} onPick={(a) => set("areaId", draft.areaId === a ? null : a)} />
+            <AreaPills value={draft.areaId} onChange={(a) => set("areaId", a)} toggle />
           </Field>
 
           <Field label="Project">

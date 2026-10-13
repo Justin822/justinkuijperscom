@@ -24,5 +24,10 @@ export const viewport: Viewport = {
 };
 
 export default function PlannerLayout({ children }: { children: React.ReactNode }) {
-  return <div className={`tk ${inter.variable}`}>{children}</div>;
+  // lang="nl": de rest van de site is Engels, de Planner Nederlands (uitspraak, afbreken, spellingscontrole).
+  return (
+    <div className={`tk ${inter.variable}`} lang="nl">
+      {children}
+    </div>
+  );
 }

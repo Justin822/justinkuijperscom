@@ -3,10 +3,10 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { AREAS } from "@/lib/taken/config";
 import { markConverted, noteRest, taskLines } from "@/lib/taken/notes";
 import { parseTask } from "@/lib/taken/parse";
 import type { Task } from "@/lib/taken/types";
+import AreaPills from "../../../_components/AreaPills";
 import { ChevronLeftIcon, PinIcon, TrashIcon } from "../../../_components/icons";
 import { useTaken } from "../../../_components/TakenContext";
 
@@ -189,21 +189,7 @@ export default function NotePage({ params }: { params: { id: string } }) {
         aria-label="Titel"
       />
 
-      <div className="tk-pills mt-3 mb-4">
-        {AREAS.map((a) => (
-          <button
-            key={a.id}
-            type="button"
-            className="tk-pill"
-            style={{ height: 24, fontSize: 12 }}
-            aria-pressed={note.areaId === a.id}
-            onClick={() => updateNote(note.id, { areaId: note.areaId === a.id ? null : a.id })}
-          >
-            <span className="tk-dot" style={{ background: a.color }} />
-            {a.short}
-          </button>
-        ))}
-      </div>
+      <AreaPills className="mt-3 mb-4" small value={note.areaId} onChange={(areaId) => updateNote(note.id, { areaId })} toggle />
 
       {open.length > 0 && (
         <div className="tk-banner is-soft mb-4">

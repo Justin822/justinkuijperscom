@@ -27,6 +27,7 @@ import {
   toMinutes,
 } from "./time";
 import { movable, useEvents } from "./useEvents";
+import { isPhone } from "../device";
 
 // De agenda: dag- of weekrooster met je afspraken en de timeblocks van taken.
 // Slepen = verplaatsen, randen slepen = duur/begin aanpassen, op een lege plek slepen = nieuw blok.
@@ -423,7 +424,7 @@ export default function CalendarGrid({
       const el = scrollRef.current;
       if (!el) return;
       const top = el.getBoundingClientRect().top + window.scrollY;
-      const bottom = window.matchMedia("(max-width: 899px)").matches ? 78 : 20;
+      const bottom = isPhone() ? 78 : 20;
       setHeight(Math.max(320, Math.round(window.innerHeight - top - bottom)));
     };
     calc();

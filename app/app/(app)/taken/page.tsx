@@ -5,12 +5,14 @@ import { useMemo, useState } from "react";
 import { AREA_BY_ID, AREAS } from "@/lib/taken/config";
 import { addDays } from "@/lib/taken/dates";
 import type { AreaId, Task } from "@/lib/taken/types";
+import AreaPills from "../../_components/AreaPills";
 import { SearchIcon } from "../../_components/icons";
 import InboxActions from "../../_components/InboxActions";
 import PageHeader from "../../_components/PageHeader";
 import QuickAdd from "../../_components/QuickAdd";
 import TaskRow from "../../_components/TaskRow";
 import { useTaken } from "../../_components/TakenContext";
+import { searchable } from "@/lib/taken/text";
 
 // Eén tab voor alle taken: Inbox, Open (per gebied en project), Wachten op, Ooit en Af.
 
@@ -33,7 +35,6 @@ const byUrgency = (a: Task, b: Task) =>
 const inList = (t: Task, list: List) =>
   list === "open" ? t.status === "gepland" || t.status === "bezig" : t.status === list;
 
-const norm = (s: string) => s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
 
 export default function TasksPage() {
   const router = useRouter();
@@ -41,18 +42,18 @@ export default function TasksPage() {
   const params = useSearchParams();
   const { tasks, loaded, updateTask, today } = useTaken();
   const list = (LISTS.find((l) => l.id === params?.get("lijst"))?.id || (tasks.some((t) => t.status === "inbox") ? "inbox" : "open")) as List;
-  const [area, setArea] = useState<AreaId | "geen" | null>(null);
+  const [area, setArea] = useState<AreaId | null>(null);
   const [query, setQuery] = useState("");
   const [expanded, setExpanded] = useState<string | null>(null);
 
   const setList = (id: List) => router.replace(`${pathname}?lijst=${id}`);
 
   const visible = useMemo(() => {
-    const q = norm(query.trim());
+    const q = searchable(query.trim());
     return tasks
       .filter((t) => inList(t, list))
-      .filter((t) => !area || (area === "geen" ? !t.areaId : t.areaId === area))
-      .filter((t) => !q || norm(`${t.title} ${t.project || ""} ${t.note || ""} ${t.waitingOn || ""}`).includes(q))
+      .filter((t) => !area || t.areaId === area)
+      .filter((t) => !q || searchable(`${t.title} ${t.project || ""} ${t.note || ""} ${t.waitingOn || ""}`).includes(q))
       .sort(
         list === "af"
           ? (a, b) => (b.doneAt || 0) - (a.doneAt || 0)
@@ -157,23 +158,7 @@ export default function TasksPage() {
       </div>
 
       <div className="mt-3 flex flex-wrap items-center gap-2">
-        <div className="tk-pills">
-          <button type="button" className="tk-pill" aria-pressed={!area} onClick={() => setArea(null)}>
-            Alles
-          </button>
-          {AREAS.map((a) => (
-            <button
-              key={a.id}
-              type="button"
-              className="tk-pill"
-              aria-pressed={area === a.id}
-              onClick={() => setArea(area === a.id ? null : a.id)}
-            >
-              <span className="tk-dot" style={{ background: a.color }} />
-              {a.short}
-            </button>
-          ))}
-        </div>
+        <AreaPills value={area} onChange={setArea} toggle all />
         <label className="ml-auto flex h-7 items-center gap-1.5 tk-faint" style={{ minWidth: 140 }}>
           <SearchIcon className="h-4 w-4" />
           <input

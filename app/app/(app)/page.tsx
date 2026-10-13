@@ -17,6 +17,7 @@ import { anchorOf, Menu, type Anchor } from "../_components/Popover";
 import QuickAdd from "../_components/QuickAdd";
 import { CheckButton, focusLabel } from "../_components/TaskRow";
 import { eventsOn, useAgenda, useTaken } from "../_components/TakenContext";
+import { isPhone, readLocal, writeLocal } from "../_components/device";
 
 // Vandaag = dagplanner: links wat je gaat doen, rechts wanneer. Op mobiel wissel je tussen Lijst en Dag.
 
@@ -28,7 +29,6 @@ function greeting(hour: number) {
 }
 
 const VIEW_KEY = "tk-today-view";
-const isPhone = () => typeof window !== "undefined" && window.matchMedia("(max-width: 899px)").matches;
 
 export default function TodayPage() {
   const params = useSearchParams();
@@ -71,20 +71,12 @@ export default function TodayPage() {
   const nextDay = addDays(date > today ? date : today, 1);
 
   useEffect(() => {
-    try {
-      const saved = localStorage.getItem(VIEW_KEY);
-      if (saved === "dag" || saved === "lijst") setView(saved);
-    } catch {
-      // geen opslag beschikbaar
-    }
+    const saved = readLocal(VIEW_KEY);
+    if (saved === "dag" || saved === "lijst") setView(saved);
   }, []);
   const switchView = (v: "lijst" | "dag") => {
     setView(v);
-    try {
-      localStorage.setItem(VIEW_KEY, v);
-    } catch {
-      // geen opslag beschikbaar
-    }
+    writeLocal(VIEW_KEY, v);
   };
 
   useEffect(() => {
