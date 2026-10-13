@@ -1,4 +1,4 @@
-/* Planner — minimalistisch en monochroom. Licht en donker volgen het systeem.
+/* Planner — minimalistisch en monochroom. Licht en donker volgen het systeem (of je eigen keuze).
    Alles staat onder .tk zodat de Tailwind-reset er niet overheen gaat. */
 
 .tk {
@@ -31,8 +31,9 @@
   -webkit-tap-highlight-color: transparent;
 }
 
+/* Donker: volgt het systeem, tenzij je in Instellingen zelf licht of donker kiest (data-theme op <html>). */
 @media (prefers-color-scheme: dark) {
-  .tk {
+  :root:not([data-theme="light"]) .tk {
     --bg: #0a0a0a;
     --surface: #111111;
     --hover: #1a1a1a;
@@ -47,7 +48,28 @@
     --warn: #fbbf24;
     --ok: #4ade80;
     --block: #1c1c1c;
+    color-scheme: dark;
   }
+}
+:root[data-theme="dark"] .tk {
+  --bg: #0a0a0a;
+  --surface: #111111;
+  --hover: #1a1a1a;
+  --line: #222222;
+  --line-strong: #333333;
+  --text: #fafafa;
+  --muted: #8f8f8f;
+  --faint: #5c5c5c;
+  --accent: #fafafa;
+  --accent-text: #0a0a0a;
+  --danger: #f87171;
+  --warn: #fbbf24;
+  --ok: #4ade80;
+  --block: #1c1c1c;
+  color-scheme: dark;
+}
+:root[data-theme="light"] .tk {
+  color-scheme: light;
 }
 
 .tk ::selection {
@@ -480,7 +502,8 @@
 .tk .tk-pill:hover {
   color: var(--text);
 }
-.tk .tk-pill[aria-pressed="true"] {
+.tk .tk-pill[aria-pressed="true"],
+.tk .tk-pill[aria-checked="true"] {
   border-color: var(--text);
   color: var(--text);
 }
@@ -1789,4 +1812,60 @@ html.tk-dragging * {
 .tk .tk-meta a.tk-src:hover {
   color: var(--text);
   text-decoration: underline;
+}
+
+/* Vegen op een taakrij (telefoon): de inhoud schuift mee, eronder staat wat er gaat gebeuren. */
+.tk .tk-row {
+  position: relative;
+  touch-action: pan-y;
+}
+/* Alleen tijdens het vegen een transform: die zou anders vaste popovers in de rij verschuiven. */
+.tk .tk-row[data-swipe] > * {
+  transform: translateX(var(--swipe, 0px));
+  transition: transform 0.18s ease;
+}
+.tk .tk-row.is-swiping > * {
+  transition: none;
+}
+.tk .tk-row[data-swipe="af"]::before,
+.tk .tk-row[data-swipe="morgen"]::before {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--muted);
+}
+.tk .tk-row[data-swipe="af"]::before {
+  content: "Afvinken";
+  left: 0;
+  color: var(--ok);
+}
+.tk .tk-row[data-swipe="morgen"]::before {
+  content: "Naar morgen";
+  right: 0;
+}
+
+/* Afvinken: een klein "plop"-effect. */
+.tk .tk-check.is-on svg {
+  animation: tk-pop 0.22s ease-out;
+}
+@keyframes tk-pop {
+  from {
+    transform: scale(0.4);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tk *,
+  .tk *::before,
+  .tk *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
 }

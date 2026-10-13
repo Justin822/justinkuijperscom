@@ -43,6 +43,20 @@ export default function TaskSheet({ id }: { id: string }) {
     if (!task) openTask(null);
   }, [task, openTask]);
 
+  // Terug-knop (Android) of terugvegen sluit het venster en bewaart, in plaats van de pagina te verlaten:
+  // bij openen een extra stap in de geschiedenis, die bij sluiten weer wordt opgeruimd.
+  useEffect(() => {
+    window.history.pushState({ ...window.history.state, tkSheet: id }, "");
+    const onPop = () => {
+      if (window.history.state?.tkSheet !== id) saveRef.current();
+    };
+    window.addEventListener("popstate", onPop);
+    return () => {
+      window.removeEventListener("popstate", onPop);
+      if (window.history.state?.tkSheet === id) window.history.back();
+    };
+  }, [id]);
+
   // Esc sluit het venster en bewaart je wijzigingen, net als klikken ernaast.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {

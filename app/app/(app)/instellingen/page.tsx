@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { WORKDAY } from "@/lib/taken/agenda";
 import { httpShortcutsExport } from "@/lib/taken/http-shortcuts";
 import { readLocal, writeLocal } from "../../_components/device";
+import { readTheme, setTheme, type Theme } from "../../_components/theme";
 import { usePush } from "../../_components/usePush";
 import type { PublicSettings } from "@/lib/taken/types";
 import { TrashIcon } from "../../_components/icons";
@@ -60,6 +61,8 @@ export default function SettingsPage() {
   const [keyName, setKeyName] = useState("");
   const [newKey, setNewKey] = useState<string | null>(null);
   const [sessions, setSessions] = useState<SessionRow[] | null>(null);
+  const [theme, setThemeState] = useState<Theme>("systeem");
+  useEffect(() => setThemeState(readTheme()), []);
   const push = usePush(settings?.push.publicKey || null);
   const [afsluitTijd, setAfsluitTijd] = useState(settings?.push.afsluitTijd || "17:30");
 
@@ -608,6 +611,26 @@ export default function SettingsPage() {
             </div>
           </div>
         )}
+      </Section>
+
+      <Section title="Weergave" intro="Licht, donker, of zoals je telefoon staat ingesteld. Geldt voor dit apparaat.">
+        <div className="tk-pills" role="radiogroup" aria-label="Thema">
+          {(["systeem", "licht", "donker"] as Theme[]).map((t) => (
+            <button
+              key={t}
+              type="button"
+              role="radio"
+              className="tk-pill"
+              aria-checked={theme === t}
+              onClick={() => {
+                setThemeState(t);
+                setTheme(t);
+              }}
+            >
+              {t === "systeem" ? "Systeem" : t === "licht" ? "Licht" : "Donker"}
+            </button>
+          ))}
+        </div>
       </Section>
 
       <Section title="Werkdag" intro="Gebruikt voor je vrije tijd per dag en de keuze van je top 3.">

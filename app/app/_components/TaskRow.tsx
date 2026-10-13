@@ -1,8 +1,8 @@
 "use client";
 
-import { memo } from "react";
+import { memo, useCallback, useRef } from "react";
 import { AREA_BY_ID, estimateLabel } from "@/lib/taken/config";
-import { diffDays, formatRelative } from "@/lib/taken/dates";
+import { addDays, diffDays, formatRelative } from "@/lib/taken/dates";
 import { repeatLabel } from "@/lib/taken/repeat";
 import { isOutside, SOURCE_LABEL, sourceLink } from "@/lib/taken/source";
 import type { Task } from "@/lib/taken/types";
@@ -85,8 +85,23 @@ export const TaskMeta = memo(function TaskMeta({ task, hideArea }: { task: Task;
   return parts.length ? <div className="tk-meta">{parts}</div> : null;
 });
 
-export const CheckButton = memo(function CheckButton({ task }: { task: Task }) {
+/** Afvinken met een korte trilling en "Ongedaan maken" (voor het rondje én vegen naar rechts). */
+function useCheckOff() {
   const { updateTask, notify } = useTakenActions();
+  return useCallback(
+    (task: Task) => {
+      const previous = task.status;
+      navigator.vibrate?.(12);
+      updateTask(task.id, { status: "af" });
+      notify(task.repeat ? "Afgevinkt, de volgende staat klaar" : "Afgevinkt", () => updateTask(task.id, { status: previous }));
+    },
+    [updateTask, notify]
+  );
+}
+
+export const CheckButton = memo(function CheckButton({ task }: { task: Task }) {
+  const { updateTask } = useTakenActions();
+  const checkOff = useCheckOff();
   const done = task.status === "af";
   return (
     <button
@@ -95,21 +110,76 @@ export const CheckButton = memo(function CheckButton({ task }: { task: Task }) {
       aria-label={done ? "Weer openzetten" : "Afvinken"}
       onClick={(e) => {
         e.stopPropagation();
-        if (done) {
-          updateTask(task.id, { status: task.areaId ? "gepland" : "inbox" });
-        } else {
-          const previous = task.status;
-          updateTask(task.id, { status: "af" });
-          notify(task.repeat ? "Afgevinkt, de volgende staat klaar" : "Afgevinkt", () =>
-            updateTask(task.id, { status: previous })
-          );
-        }
+        if (done) updateTask(task.id, { status: task.areaId ? "gepland" : "inbox" });
+        else checkOff(task);
       }}
     >
       <CheckIcon />
     </button>
   );
 });
+
+const SWIPE = 84;
+
+/**
+ * Vegen op een telefoon: naar rechts vinkt af, naar links schuift naar morgen.
+ * Alleen bij een duidelijk horizontale beweging; verticaal blijft gewoon scrollen.
+ */
+function useSwipe(task: Task) {
+  const today = useToday();
+  const { changeTask } = useTakenActions();
+  const checkOff = useCheckOff();
+  const ref = useRef<HTMLDivElement>(null);
+  const enabled = task.status !== "af";
+
+  const onPointerDown = (e: React.PointerEvent) => {
+    const row = ref.current;
+    if (!enabled || !row || e.pointerType !== "touch") return;
+    if ((e.target as HTMLElement).closest("button, input, textarea, select, a")) return;
+    const x0 = e.clientX;
+    const y0 = e.clientY;
+    let mode: "?" | "x" | "y" = "?";
+    let dx = 0;
+    const set = (value: number) => {
+      row.style.setProperty("--swipe", `${value}px`);
+      row.dataset.swipe = value > SWIPE ? "af" : value < -SWIPE ? "morgen" : "";
+    };
+    const move = (ev: PointerEvent) => {
+      const mx = ev.clientX - x0;
+      const my = ev.clientY - y0;
+      if (mode === "?") {
+        if (Math.abs(my) > 10) mode = "y";
+        else if (Math.abs(mx) > 12 && Math.abs(mx) > Math.abs(my) * 1.5) {
+          mode = "x";
+          row.classList.add("is-swiping");
+        }
+      }
+      if (mode !== "x") return;
+      dx = Math.max(-140, Math.min(140, mx));
+      set(dx);
+    };
+    const end = () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", end);
+      window.removeEventListener("pointercancel", end);
+      if (mode !== "x") return;
+      row.classList.remove("is-swiping");
+      set(0);
+      // De klik die na het loslaten volgt mag de taak niet openen.
+      window.addEventListener("click", (ev) => ev.stopPropagation(), { capture: true, once: true });
+      setTimeout(() => row.removeAttribute("data-swipe"), 200);
+      if (dx > SWIPE) checkOff(task);
+      else if (dx < -SWIPE) {
+        navigator.vibrate?.(12);
+        changeTask(task.id, { planDate: addDays(today, 1), blockStart: null }, "Naar morgen");
+      }
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", end);
+    window.addEventListener("pointercancel", end);
+  };
+  return { ref, onPointerDown };
+}
 
 export default function TaskRow({
   task,
@@ -126,8 +196,9 @@ export default function TaskRow({
   onOpen?: () => void;
 }) {
   const { openTask } = useTakenActions();
+  const swipe = useSwipe(task);
   return (
-    <div className={`tk-row ${task.status === "af" ? "is-done" : ""}`}>
+    <div ref={swipe.ref} onPointerDown={swipe.onPointerDown} className={`tk-row ${task.status === "af" ? "is-done" : ""}`}>
       <CheckButton task={task} />
       <div className="tk-row-body" onClick={onOpen || (() => openTask(task.id))}>
         <div className="tk-row-title">{task.title}</div>

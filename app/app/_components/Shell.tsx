@@ -11,6 +11,7 @@ import { EXTRA, NAV } from "./nav";
 import { useTakenActions, useTakenData, useTakenUi } from "./TakenContext";
 import TaskSheet from "./TaskSheet";
 import { SW_URL } from "./device";
+import { applyTheme, readTheme } from "./theme";
 
 export default function Shell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname() || "";
@@ -50,6 +51,9 @@ export default function Shell({ children }: { children: React.ReactNode }) {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [addRef, editing, openTask, palette, openPalette, undoLast]);
+
+  // Thema-kleur van de statusbalk volgens je keuze (het thema zelf zet het script in de layout).
+  useEffect(() => applyTheme(readTheme()), []);
 
   // Service worker voor de app op je beginscherm.
   useEffect(() => {

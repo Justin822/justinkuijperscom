@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
+import { THEME_SCRIPT } from "./_components/theme";
 import "./taken.css";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter", display: "swap" });
@@ -27,6 +28,8 @@ export default function PlannerLayout({ children }: { children: React.ReactNode 
   // lang="nl": de rest van de site is Engels, de Planner Nederlands (uitspraak, afbreken, spellingscontrole).
   return (
     <div className={`tk ${inter.variable}`} lang="nl">
+      {/* Gekozen thema meteen toepassen, vóór de eerste weergave. */}
+      <script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />
       {children}
     </div>
   );
