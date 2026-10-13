@@ -43,7 +43,7 @@ test("vegen naar rechts vinkt af, naar links schuift naar morgen", async ({ app 
     const y = box.y + box.height / 2;
     const x = box.x + box.width / 2;
     const cdp = await app.context().newCDPSession(app);
-    const touch = (type: string, px: number) =>
+    const touch = (type: "touchStart" | "touchMove" | "touchEnd", px: number) =>
       cdp.send("Input.dispatchTouchEvent", { type, touchPoints: type === "touchEnd" ? [] : [{ x: px, y }] });
     await touch("touchStart", x);
     for (let i = 1; i <= 8; i++) await touch("touchMove", x + (dx * i) / 8);
