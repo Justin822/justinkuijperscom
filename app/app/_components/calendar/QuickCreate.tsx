@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { parseTask } from "@/lib/taken/parse";
 import type { Task } from "@/lib/taken/types";
 import Popover, { type Anchor } from "../Popover";
-import { useTaken } from "../TakenContext";
+import { useTakenActions, useTakenData } from "../TakenContext";
 import { blockStartOf, durationLabel, fmt, localMs } from "./time";
 import { useEvents } from "./useEvents";
 import { readLocal, writeLocal } from "../device";
@@ -26,7 +26,8 @@ export default function QuickCreate({
   anchor: Anchor;
   onClose: () => void;
 }) {
-  const { addTasks, notify, today, settings } = useTaken();
+  const { today, settings } = useTakenData();
+  const { addTasks, notify } = useTakenActions();
   const { create } = useEvents();
   const google = settings?.google;
   const canEvent = Boolean(google?.connected && google.canEdit && !google.needsReconnect);

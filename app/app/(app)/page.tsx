@@ -16,7 +16,7 @@ import { CalendarIcon, ChevronLeftIcon, ChevronRightIcon, PlayIcon, SearchIcon }
 import { anchorOf, Menu, type Anchor } from "../_components/Popover";
 import QuickAdd from "../_components/QuickAdd";
 import { CheckButton, focusLabel } from "../_components/TaskRow";
-import { eventsOn, useAgenda, useTaken } from "../_components/TakenContext";
+import { eventsOn, useAgenda, useTakenActions, useTakenData, useTakenUi } from "../_components/TakenContext";
 import { isPhone, readLocal, writeLocal } from "../_components/device";
 
 // Vandaag = dagplanner: links wat je gaat doen, rechts wanneer. Op mobiel wissel je tussen Lijst en Dag.
@@ -33,22 +33,9 @@ const VIEW_KEY = "tk-today-view";
 export default function TodayPage() {
   const params = useSearchParams();
   const router = useRouter();
-  const {
-    tasks,
-    loaded,
-    error,
-    today,
-    plan,
-    reloadPlan,
-    planAction,
-    openTask,
-    updateTask,
-    changeTask,
-    startFocus,
-    notify,
-    openPalette,
-    workday,
-  } = useTaken();
+  const { tasks, loaded, error, today, plan, reloadPlan, planAction, workday } = useTakenData();
+  const { openTask, updateTask, changeTask, notify, openPalette } = useTakenActions();
+  const { startFocus } = useTakenUi();
   const initial = params?.get("datum");
   const [date, setDate] = useState(isIsoDate(initial) ? (initial as string) : today);
   const [view, setView] = useState<"lijst" | "dag">("lijst");

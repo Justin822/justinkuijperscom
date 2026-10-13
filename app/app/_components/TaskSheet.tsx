@@ -6,7 +6,7 @@ import { addDays, weekday, WEEKDAYS } from "@/lib/taken/dates";
 import type { Impact, Repeat, Status, Task } from "@/lib/taken/types";
 import AreaPills from "./AreaPills";
 import { PlayIcon, TrashIcon, XIcon } from "./icons";
-import { useTaken } from "./TakenContext";
+import { useTakenActions, useTakenData, useTakenUi } from "./TakenContext";
 import { focusLabel } from "./TaskRow";
 
 const SOURCE_LABEL: Record<Task["source"], string> = {
@@ -38,7 +38,9 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 
 // Alle velden van één taak. Wijzigingen gaan weg bij sluiten of "Opslaan".
 export default function TaskSheet({ id }: { id: string }) {
-  const { tasks, openTask, updateTask, removeTask, notify, today, addTasks, startFocus } = useTaken();
+  const { tasks, today } = useTakenData();
+  const { openTask, updateTask, removeTask, notify, addTasks } = useTakenActions();
+  const { startFocus } = useTakenUi();
   const task = tasks.find((t) => t.id === id);
   const [draft, setDraft] = useState<Task | null>(task || null);
   // De stand bij openen: alleen wat je zelf in het venster verandert gaat mee bij opslaan,

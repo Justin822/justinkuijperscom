@@ -4,13 +4,14 @@ import { useEffect, useMemo, useState } from "react";
 import { parseTask, splitEntries } from "@/lib/taken/parse";
 import type { Source, Task } from "@/lib/taken/types";
 import { ArrowUpIcon, MicIcon } from "./icons";
-import { useTaken } from "./TakenContext";
+import { useTakenActions, useTakenData } from "./TakenContext";
 import { useSpeech } from "./useSpeech";
 
 // Eén zin typen of inspreken; de herkende stukjes verschijnen meteen als chips.
 
 export default function QuickAdd() {
-  const { addRef, addTasks, today, notify } = useTaken();
+  const { addRef, today } = useTakenData();
+  const { addTasks, notify } = useTakenActions();
   const [text, setText] = useState("");
   const [source, setSource] = useState<Source>("handmatig");
   const [busy, setBusy] = useState(false);

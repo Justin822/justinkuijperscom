@@ -3,11 +3,12 @@
 import { AREA_BY_ID } from "@/lib/taken/config";
 import type { Task } from "@/lib/taken/types";
 import AreaPills from "./AreaPills";
-import { useTaken } from "./TakenContext";
+import { useTakenActions, useTakenData } from "./TakenContext";
 
 // Een taak uit de Inbox een plek geven: gebied kiezen, of naar wachten / ooit / weg.
 export default function InboxActions({ task }: { task: Task }) {
-  const { updateTask, removeTask, openTask, notify, today, addTasks } = useTaken();
+  const { today } = useTakenData();
+  const { updateTask, removeTask, openTask, notify, addTasks } = useTakenActions();
   const area = task.areaId ? AREA_BY_ID[task.areaId] : null;
 
   return (

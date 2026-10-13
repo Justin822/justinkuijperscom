@@ -9,7 +9,7 @@ import { usePush } from "../../_components/usePush";
 import type { PublicSettings } from "@/lib/taken/types";
 import { TrashIcon } from "../../_components/icons";
 import PageHeader from "../../_components/PageHeader";
-import { api, useTaken } from "../../_components/TakenContext";
+import { api, useTakenActions, useTakenData } from "../../_components/TakenContext";
 
 // Instellingen: Google Agenda koppelen, iCal-links (Outlook), sleutels voor snel invoeren en je werkdag.
 
@@ -50,7 +50,8 @@ export default function SettingsPage() {
   const router = useRouter();
   const pathname = usePathname();
   const params = useSearchParams();
-  const { settings, setSettings, notify } = useTaken();
+  const { settings, setSettings } = useTakenData();
+  const { notify } = useTakenActions();
   const [flash, setFlash] = useState<{ text: string; error?: boolean } | null>(null);
   const [icsName, setIcsName] = useState("");
   const [icsUrl, setIcsUrl] = useState("");

@@ -1,17 +1,19 @@
 "use client";
 
+import { memo } from "react";
 import { AREA_BY_ID, estimateLabel } from "@/lib/taken/config";
 import { diffDays, formatRelative } from "@/lib/taken/dates";
 import { repeatLabel } from "@/lib/taken/repeat";
 import type { Task } from "@/lib/taken/types";
 import { CheckIcon } from "./icons";
-import { useTaken } from "./TakenContext";
+import { useTakenActions, useToday } from "./TakenContext";
 
 export const focusLabel = (m: number) => (m >= 60 ? `${Math.floor(m / 60)}u${m % 60 ? ` ${m % 60}m` : ""}` : `${m} min`);
 
 /** Eén gedempte regel: ● Appèl / Leadgen · vr 16 okt · 30 min · ↻ elke maandag */
-export function TaskMeta({ task, hideArea }: { task: Task; hideArea?: boolean }) {
-  const { today } = useTaken();
+// memo + alleen useToday: een regel tekent alleen opnieuw als zijn eigen taak verandert.
+export const TaskMeta = memo(function TaskMeta({ task, hideArea }: { task: Task; hideArea?: boolean }) {
+  const today = useToday();
   const area = task.areaId ? AREA_BY_ID[task.areaId] : null;
   const parts: React.ReactNode[] = [];
 
@@ -70,10 +72,10 @@ export function TaskMeta({ task, hideArea }: { task: Task; hideArea?: boolean })
     );
 
   return parts.length ? <div className="tk-meta">{parts}</div> : null;
-}
+});
 
-export function CheckButton({ task }: { task: Task }) {
-  const { updateTask, notify } = useTaken();
+export const CheckButton = memo(function CheckButton({ task }: { task: Task }) {
+  const { updateTask, notify } = useTakenActions();
   const done = task.status === "af";
   return (
     <button
@@ -96,7 +98,7 @@ export function CheckButton({ task }: { task: Task }) {
       <CheckIcon />
     </button>
   );
-}
+});
 
 export default function TaskRow({
   task,
@@ -112,7 +114,7 @@ export default function TaskRow({
   /** Wat een tik op de taak doet; standaard de taak openen. */
   onOpen?: () => void;
 }) {
-  const { openTask } = useTaken();
+  const { openTask } = useTakenActions();
   return (
     <div className={`tk-row ${task.status === "af" ? "is-done" : ""}`}>
       <CheckButton task={task} />

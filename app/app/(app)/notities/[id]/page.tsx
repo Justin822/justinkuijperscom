@@ -8,7 +8,7 @@ import { parseTask } from "@/lib/taken/parse";
 import type { Note, Task } from "@/lib/taken/types";
 import AreaPills from "../../../_components/AreaPills";
 import { ChevronLeftIcon, PinIcon, TrashIcon } from "../../../_components/icons";
-import { ApiError, useTaken } from "../../../_components/TakenContext";
+import { ApiError, useTakenActions, useTakenData } from "../../../_components/TakenContext";
 
 // Notitie-editor: titel + tekst, slaat vanzelf op. "[ ] iets" wordt met één knop een taak.
 
@@ -16,7 +16,8 @@ const LIST_PREFIX = /^(\s*)(- \[[ x→]\] |\[[ x→]\] |[-*•] |(\d+)\. )(.*)$/
 
 export default function NotePage({ params }: { params: { id: string } }) {
   const router = useRouter();
-  const { notes, loaded, updateNote, removeNote, createNote, addTasks, notify, today } = useTaken();
+  const { notes, loaded, today } = useTakenData();
+  const { updateNote, removeNote, createNote, addTasks, notify } = useTakenActions();
   const note = notes.find((n) => n.id === params.id);
   const [title, setTitle] = useState("");
   const [rest, setRest] = useState("");

@@ -7,10 +7,10 @@ import { weekday, WEEKDAYS_SHORT } from "@/lib/taken/dates";
 import type { CalendarEvent, Task } from "@/lib/taken/types";
 import { CheckIcon } from "../icons";
 import { anchorOf, type Anchor } from "../Popover";
-import { useTaken } from "../TakenContext";
+import { useTakenActions, useTakenData } from "../TakenContext";
 import { focusLabel } from "../TaskRow";
 import BlockPopover, { GuestConfirm, type Block } from "./BlockPopover";
-import { useExternalDrag } from "./DragLayer";
+import { useDragActions, useExternalDrag } from "./DragLayer";
 import { layoutDay } from "./layout";
 import QuickCreate from "./QuickCreate";
 import {
@@ -71,7 +71,8 @@ export default function CalendarGrid({
   showHeader?: boolean;
   onDayClick?: (day: string) => void;
 }) {
-  const { tasks, today, workday, changeTask, updateTask } = useTaken();
+  const { tasks, today, workday } = useTakenData();
+  const { changeTask, updateTask } = useTakenActions();
   const eventActions = useEvents();
   const H = hourHeight;
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -146,7 +147,24 @@ export default function CalendarGrid({
 
   // Tijdens slepen staat het blok op zijn nieuwe plek (ook in een andere dagkolom).
   const moved = drag || pending;
-  const display = blocks.map((b) => (moved && b.id === moved.id ? { ...b, day: moved.day, start: moved.start, end: moved.end } : b));
+  const movedKey = moved ? `${moved.id}|${moved.day}|${moved.start}|${moved.end}` : "";
+  const display = useMemo(
+    () => blocks.map((b) => (moved && b.id === moved.id ? { ...b, day: moved.day, start: moved.start, end: moved.end } : b)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [blocks, movedKey]
+  );
+  // Indeling per dag (overlappende blokken naast elkaar); alleen opnieuw als blokken echt verschuiven,
+  // niet bij elke muisbeweging van een taak die vanuit een lijst over het rooster gaat.
+  const draggingId = drag?.id;
+  const perDay = useMemo(() => {
+    const out = new Map<string, { dayBlocks: Block[]; placed: ReturnType<typeof layoutDay> }>();
+    for (const day of days) {
+      const dayBlocks = display.filter((b) => b.day === day);
+      const placed = layoutDay(dayBlocks.filter((b) => b.id !== draggingId).map((b) => ({ id: b.id, start: b.start, end: b.end })));
+      out.set(day, { dayBlocks, placed });
+    }
+    return out;
+  }, [days, display, draggingId]);
   /** Kun je dit blok slepen en oprekken? */
   const canEdit = (b: Block | null | undefined) => Boolean(b && (b.kind === "task" || movable(b.event)));
 
@@ -194,16 +212,17 @@ export default function CalendarGrid({
   // Taken die vanuit een lijst op het rooster worden losgelaten.
   const placeRef = useRef(place);
   placeRef.current = place;
+  const { register } = ext;
   useEffect(
     () =>
-      ext.register((x, y, task) => {
+      register((x, y, task) => {
         if (!colsRef.current) return false;
         const slot = slotAt(x, y);
         if (!slot.inside) return false;
         placeRef.current(task.id, slot.day, slot.minutes);
         return true;
       }),
-    [ext, slotAt]
+    [register, slotAt]
   );
 
   /** Nieuwe tijd voor een Google-afspraak; met gasten eerst vragen of zij een mail krijgen. */
@@ -541,10 +560,7 @@ export default function CalendarGrid({
           </div>
           <div className="cal-cols" ref={colsRef}>
             {days.map((day) => {
-              const dayBlocks = display.filter((b) => b.day === day);
-              const placed = layoutDay(
-                dayBlocks.filter((b) => !(drag && b.id === drag.id)).map((b) => ({ id: b.id, start: b.start, end: b.end }))
-              );
+              const { dayBlocks, placed } = perDay.get(day) as NonNullable<ReturnType<typeof perDay.get>>;
               const preview =
                 (drag?.mode === "create" && drag.day === day && drag) ||
                 (creating && creating.day === day && creating) ||
@@ -736,7 +752,7 @@ export default function CalendarGrid({
 
 /** Taak zonder tijd in de hele-dag-baan: versleepbaar naar het rooster. */
 function LaneTask({ task, day, onOpen }: { task: Task; day: string; onOpen: (anchor: Anchor) => void }) {
-  const { begin } = useExternalDrag();
+  const { begin } = useDragActions();
   return (
     <button
       type="button"

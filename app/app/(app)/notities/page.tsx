@@ -10,13 +10,14 @@ import type { AreaId, Note } from "@/lib/taken/types";
 import AreaPills from "../../_components/AreaPills";
 import { PinIcon, PlusIcon, SearchIcon } from "../../_components/icons";
 import PageHeader from "../../_components/PageHeader";
-import { useTaken } from "../../_components/TakenContext";
+import { useTakenActions, useTakenData } from "../../_components/TakenContext";
 import { searchable } from "@/lib/taken/text";
 
 
 export default function NotesPage() {
   const router = useRouter();
-  const { notes, loaded, createNote, today, notify } = useTaken();
+  const { notes, loaded, today } = useTakenData();
+  const { createNote, notify } = useTakenActions();
   const [query, setQuery] = useState("");
   const [area, setArea] = useState<AreaId | null>(null);
 

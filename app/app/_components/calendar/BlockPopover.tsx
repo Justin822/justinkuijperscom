@@ -6,7 +6,7 @@ import { formatRelative } from "@/lib/taken/dates";
 import type { CalendarEvent, Task } from "@/lib/taken/types";
 import { CheckIcon, PlayIcon, TrashIcon } from "../icons";
 import Popover, { type Anchor } from "../Popover";
-import { useTaken } from "../TakenContext";
+import { useTakenActions, useTakenData, useTakenUi } from "../TakenContext";
 import { blockStartOf, durationLabel, fmt, localParts, toMinutes } from "./time";
 import { movable, useEvents } from "./useEvents";
 
@@ -87,7 +87,9 @@ export function GuestConfirm({
 }
 
 function TaskContent({ taskId, onClose }: { taskId: string; onClose: () => void }) {
-  const { tasks, today, changeTask, updateTask, removeTask, addTasks, notify, openTask, startFocus } = useTaken();
+  const { tasks, today } = useTakenData();
+  const { changeTask, updateTask, removeTask, addTasks, notify, openTask } = useTakenActions();
+  const { startFocus } = useTakenUi();
   const task = tasks.find((t) => t.id === taskId);
   const [title, setTitle] = useState(task?.title || "");
   if (!task) return null;
@@ -221,7 +223,8 @@ function EventContent({
   onEventTime,
   onEventDelete,
 }: { event: CalendarEvent; day: string; onClose: () => void } & EventHandlers) {
-  const { addTasks, notify, today, settings } = useTaken();
+  const { today, settings } = useTakenData();
+  const { addTasks, notify } = useTakenActions();
   const { update } = useEvents();
   const [title, setTitle] = useState(event.title);
   const s = localParts(event.start);

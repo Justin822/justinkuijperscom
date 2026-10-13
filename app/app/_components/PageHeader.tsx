@@ -1,7 +1,7 @@
 "use client";
 
 import { SearchIcon } from "./icons";
-import { useTaken } from "./TakenContext";
+import { useTakenActions } from "./TakenContext";
 
 // Kop van een scherm: klein label, titel en acties. Op mobiel altijd een zoekknop.
 export default function PageHeader({
@@ -13,7 +13,7 @@ export default function PageHeader({
   title: React.ReactNode;
   children?: React.ReactNode;
 }) {
-  const { openPalette } = useTaken();
+  const { openPalette } = useTakenActions();
   return (
     <header className="tk-page-head">
       <div className="min-w-0">

@@ -10,11 +10,11 @@ import { durationLabel } from "./time";
 export type ExternalDrag = { task: Task; x: number; y: number };
 type DropFn = (x: number, y: number, task: Task) => boolean;
 
-const DragContext = createContext<{
-  drag: ExternalDrag | null;
-  begin: (task: Task, x: number, y: number) => void;
-  register: (fn: DropFn) => () => void;
-} | null>(null);
+// Twee contexten: de functies (veranderen nooit) en de positie (verandert bij elke beweging).
+// Lijsten gebruiken alleen de functies en tekenen dus niet opnieuw tijdens het slepen.
+type DragActions = { begin: (task: Task, x: number, y: number) => void; register: (fn: DropFn) => () => void };
+const DragActionsContext = createContext<DragActions | null>(null);
+const DragStateContext = createContext<ExternalDrag | null>(null);
 
 export function DragProvider({ children }: { children: React.ReactNode }) {
   const [drag, setDrag] = useState<ExternalDrag | null>(null);
@@ -59,29 +59,37 @@ export function DragProvider({ children }: { children: React.ReactNode }) {
       drops.current.delete(fn);
     };
   }, []);
-  const value = useMemo(() => ({ drag, begin, register }), [drag, begin, register]);
+  const actions = useMemo(() => ({ begin, register }), [begin, register]);
 
   return (
-    <DragContext.Provider value={value}>
-      {children}
-      {drag && (
-        <div className="tk-drag-ghost" style={{ left: drag.x + 14, top: drag.y + 10 }}>
-          {drag.task.title} · {durationLabel(drag.task.estimate || 30)}
-        </div>
-      )}
-    </DragContext.Provider>
+    <DragActionsContext.Provider value={actions}>
+      <DragStateContext.Provider value={drag}>
+        {children}
+        {drag && (
+          <div className="tk-drag-ghost" style={{ left: drag.x + 14, top: drag.y + 10 }}>
+            {drag.task.title} · {durationLabel(drag.task.estimate || 30)}
+          </div>
+        )}
+      </DragStateContext.Provider>
+    </DragActionsContext.Provider>
   );
 }
 
-export function useExternalDrag() {
-  const ctx = useContext(DragContext);
-  if (!ctx) throw new Error("useExternalDrag buiten DragProvider");
+/** Alleen de functies (begin, register); verandert nooit. */
+export function useDragActions() {
+  const ctx = useContext(DragActionsContext);
+  if (!ctx) throw new Error("useDragActions buiten DragProvider");
   return ctx;
+}
+
+/** Functies én de huidige positie: voor de agenda die de drop-preview tekent. */
+export function useExternalDrag() {
+  return { ...useDragActions(), drag: useContext(DragStateContext) };
 }
 
 /** Maakt een lijstregel versleepbaar naar de agenda. Een gewone klik blijft gewoon werken. */
 export function useDragSource() {
-  const { begin } = useExternalDrag();
+  const { begin } = useDragActions();
   return useCallback(
     (task: Task) => (e: React.PointerEvent) => {
       if (e.pointerType === "mouse" && e.button !== 0) return;

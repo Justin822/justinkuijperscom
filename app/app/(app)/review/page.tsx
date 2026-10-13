@@ -8,7 +8,7 @@ import type { DayPlan } from "@/lib/taken/types";
 import { ChevronLeftIcon, ChevronRightIcon } from "../../_components/icons";
 import PageHeader from "../../_components/PageHeader";
 import { focusLabel } from "../../_components/TaskRow";
-import { api, useTaken } from "../../_components/TakenContext";
+import { api, useTakenActions, useTakenData } from "../../_components/TakenContext";
 
 // Weekreview: de succescriteria uit je plan, per gebied wat er gebeurd is, en je focus voor volgende week.
 
@@ -29,7 +29,8 @@ function Stat({ value, total, label }: { value: React.ReactNode; total?: number;
 
 export default function ReviewPage() {
   const router = useRouter();
-  const { tasks, today, createNote, notify, openTask } = useTaken();
+  const { tasks, today } = useTakenData();
+  const { createNote, notify, openTask } = useTakenActions();
   const thisMonday = addDays(today, -((weekday(today) + 6) % 7));
   const [monday, setMonday] = useState(thisMonday);
   const [data, setData] = useState<ReviewData | null>(null);

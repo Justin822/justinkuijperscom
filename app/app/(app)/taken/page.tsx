@@ -11,7 +11,7 @@ import InboxActions from "../../_components/InboxActions";
 import PageHeader from "../../_components/PageHeader";
 import QuickAdd from "../../_components/QuickAdd";
 import TaskRow from "../../_components/TaskRow";
-import { useTaken } from "../../_components/TakenContext";
+import { useTakenActions, useTakenData } from "../../_components/TakenContext";
 import { searchable } from "@/lib/taken/text";
 
 // Eén tab voor alle taken: Inbox, Open (per gebied en project), Wachten op, Ooit en Af.
@@ -40,7 +40,8 @@ export default function TasksPage() {
   const router = useRouter();
   const pathname = usePathname();
   const params = useSearchParams();
-  const { tasks, loaded, updateTask, today } = useTaken();
+  const { tasks, loaded, today } = useTakenData();
+  const { updateTask } = useTakenActions();
   const list = (LISTS.find((l) => l.id === params?.get("lijst"))?.id || (tasks.some((t) => t.status === "inbox") ? "inbox" : "open")) as List;
   const [area, setArea] = useState<AreaId | null>(null);
   const [query, setQuery] = useState("");

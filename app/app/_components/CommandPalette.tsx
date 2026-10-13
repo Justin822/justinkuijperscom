@@ -8,7 +8,7 @@ import { parseTask, splitEntries } from "@/lib/taken/parse";
 import type { Task } from "@/lib/taken/types";
 import { NoteIcon, PlayIcon, PlusIcon, SearchIcon } from "./icons";
 import { EXTRA, NAV } from "./nav";
-import { useTaken } from "./TakenContext";
+import { useTakenActions, useTakenData, useTakenUi } from "./TakenContext";
 import { searchable } from "@/lib/taken/text";
 
 // ⌘K: zoeken in taken en notities, iets toevoegen of naar een scherm gaan.
@@ -25,7 +25,9 @@ type Item = {
 
 export default function CommandPalette() {
   const router = useRouter();
-  const { palette, openPalette, tasks, notes, addTasks, createNote, openTask, startFocus, today, notify, plan } = useTaken();
+  const { tasks, notes, today, plan } = useTakenData();
+  const { openPalette, addTasks, createNote, openTask, notify } = useTakenActions();
+  const { palette, startFocus } = useTakenUi();
   const [query, setQuery] = useState("");
   const [index, setIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);

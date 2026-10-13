@@ -2,7 +2,7 @@
 
 import { useCallback } from "react";
 import type { CalendarEvent } from "@/lib/taken/types";
-import { api, editAgenda, useTaken } from "../TakenContext";
+import { api, editAgenda, useTakenActions } from "../TakenContext";
 import { localParts } from "./time";
 
 // Google-afspraken bewerken vanuit de agenda: direct zichtbaar, daarna naar Google.
@@ -27,7 +27,7 @@ function put(target: CalendarEvent, next: CalendarEvent | null) {
 const path = (e: CalendarEvent) => `/api/taken/events/${encodeURIComponent(e.eventId as string)}`;
 
 export function useEvents() {
-  const { notify } = useTaken();
+  const { notify } = useTakenActions();
 
   /** Tijd of titel aanpassen. `guests`: gasten krijgen een mail over de wijziging. */
   const update = useCallback(

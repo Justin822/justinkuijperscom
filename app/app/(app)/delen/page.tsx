@@ -5,7 +5,7 @@ import { useMemo, useState } from "react";
 import { toCapture } from "@/lib/taken/capture-parse";
 import { parseTask, splitEntries } from "@/lib/taken/parse";
 import PageHeader from "../../_components/PageHeader";
-import { useTaken } from "../../_components/TakenContext";
+import { useTakenActions, useTakenData } from "../../_components/TakenContext";
 
 // Gedeeld vanuit een andere app (Android-deelmenu, zie share_target in het manifest).
 // Je ziet eerst wat er herkend is en past het eventueel aan; dan staat het met één tik in je Inbox.
@@ -15,7 +15,8 @@ const URL_RE = /https?:\/\/\S+/i;
 export default function SharePage() {
   const router = useRouter();
   const params = useSearchParams();
-  const { today, addTasks, createNote, notify } = useTaken();
+  const { today } = useTakenData();
+  const { addTasks, createNote, notify } = useTakenActions();
 
   const shared = useMemo(() => {
     const title = (params?.get("title") || "").trim();

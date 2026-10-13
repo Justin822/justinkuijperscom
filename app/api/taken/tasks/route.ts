@@ -3,6 +3,7 @@ import { syncBlock } from "@/lib/taken/google";
 import { archiveDoneTasks, getTasks, saveTasks, takeThrottle } from "@/lib/taken/store";
 import { fail, noStore } from "@/lib/taken/server";
 import { newTask } from "@/lib/taken/validate";
+import { makeDelta, sinceParam } from "@/lib/taken/delta";
 import { requireAccess } from "@/lib/taken/session";
 
 export const dynamic = "force-dynamic";
@@ -18,9 +19,10 @@ export async function GET(request: Request) {
     if (await takeThrottle("archief", 6 * 3600).catch(() => false)) {
       await archiveDoneTasks(now).catch((error) => console.error("taken archief", error));
     }
-    // Afgeronde taken alleen van de laatste 30 dagen meesturen.
+    // Afgeronde taken alleen van de laatste 30 dagen meesturen; met ?since= alleen wat sindsdien veranderde.
     const tasks = (await getTasks()).filter((t) => t.status !== "af" || now - (t.doneAt || t.updatedAt) < RECENT_DONE);
-    return NextResponse.json({ tasks }, { headers: noStore });
+    const delta = makeDelta(tasks, sinceParam(request), now);
+    return NextResponse.json({ tasks: delta.items, ids: delta.ids, now: delta.now }, { headers: noStore });
   } catch (error) {
     return fail("tasks GET", error, "Kon je taken niet ophalen.");
   }

@@ -2,6 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { addDays, localToday } from "@/lib/taken/dates";
+import { applyDelta } from "@/lib/taken/delta";
 import { WORKDAY } from "@/lib/taken/agenda";
 import type { CalendarEvent, DayPlan, Note, PublicSettings, Task } from "@/lib/taken/types";
 import { readLocal, writeLocal } from "./device";
@@ -64,7 +65,23 @@ type Ctx = {
   workday: { start: string; end: string };
 };
 
-const TakenContext = createContext<Ctx | null>(null);
+// Drie contexten, zodat een onderdeel alleen opnieuw tekent als wat het gebruikt verandert:
+// - data: taken, notities, instellingen, de dag (verandert bij elke wijziging aan je gegevens);
+// - acties: functies die nooit veranderen (wijzigen, melden, openen);
+// - ui: toast, geopende taak, focus-timer en zoekvenster.
+type DataKey = "tasks" | "notes" | "loaded" | "error" | "today" | "plan" | "planAction" | "reloadPlan" | "settings" | "setSettings" | "workday" | "addRef";
+type ActionKey =
+  | "addTasks" | "updateTask" | "removeTask" | "mergeTasks" | "reload" | "createNote" | "updateNote" | "removeNote"
+  | "openTask" | "notify" | "undoLast" | "changeTask" | "openPalette" | "setFocusOpen";
+type DataCtx = Pick<Ctx, DataKey>;
+type ActionsCtx = Pick<Ctx, ActionKey>;
+type UiCtx = Omit<Ctx, DataKey | ActionKey>;
+
+const DataContext = createContext<DataCtx | null>(null);
+const ActionsContext = createContext<ActionsCtx | null>(null);
+const UiContext = createContext<UiCtx | null>(null);
+/** Alleen de datum van vandaag (verandert één keer per dag), voor lijstregels die verder niets nodig hebben. */
+const TodayContext = createContext<string>("");
 
 /** Fout van de API, met de statuscode en het antwoord (bijv. de nieuwe versie bij 409). */
 export class ApiError extends Error {
@@ -148,15 +165,20 @@ export function TakenProvider({ children }: { children: React.ReactNode }) {
     if (last) last();
   }, []);
 
+  // Na de eerste keer alleen wijzigingen ophalen (delta-sync); elke 10 minuten toch weer alles.
+  const lastSync = useRef<{ at: number; full: number } | null>(null);
   const reload = useCallback(async () => {
     try {
+      const prev = lastSync.current;
+      const delta = prev && Date.now() - prev.full < 10 * 60000 ? `?since=${prev.at - 2000}` : "";
       const [t, n, st] = await Promise.all([
-        api<{ tasks: Task[] }>("/api/taken/tasks"),
-        api<{ notes: Note[] }>("/api/taken/notes"),
+        api<{ tasks: Task[]; ids?: string[]; now: number }>(`/api/taken/tasks${delta}`),
+        api<{ notes: Note[]; ids?: string[]; now: number }>(`/api/taken/notes${delta}`),
         api<{ settings: PublicSettings }>("/api/taken/settings").catch(() => null),
       ]);
-      setTasks(t.tasks);
-      setNotes(n.notes);
+      setTasks((list) => applyDelta(list, { items: t.tasks, ids: t.ids, now: t.now }));
+      setNotes((list) => applyDelta(list, { items: n.notes, ids: n.ids, now: n.now }));
+      lastSync.current = { at: Math.min(t.now, n.now), full: delta && prev ? prev.full : Date.now() };
       if (st) setSettingsState(st.settings);
       setError(null);
       // Mail-radar: nieuwe gelabelde mails als taken ophalen (de server doet dit hooguit eens per 2 minuten).
@@ -442,43 +464,20 @@ export function TakenProvider({ children }: { children: React.ReactNode }) {
     setSettingsState(s);
   }, []);
 
-  const value = useMemo<Ctx>(
+  const data = useMemo<DataCtx>(
     () => ({
       tasks,
       notes,
       loaded,
       error,
       today,
-      addTasks,
-      updateTask,
-      removeTask,
-      mergeTasks,
-      reload,
-      createNote,
-      updateNote,
-      removeNote,
-      editing,
-      openTask: setEditing,
-      toast,
-      notify,
-      undoLast,
-      changeTask,
-      addRef,
       plan,
       planAction,
       reloadPlan,
-      focus,
-      startFocus,
-      pauseFocus,
-      resumeFocus,
-      stopFocus,
-      focusOpen,
-      setFocusOpen,
-      palette,
-      openPalette,
       settings,
       setSettings,
       workday: settings?.workday || WORKDAY,
+      addRef,
     }),
     [
       tasks,
@@ -486,6 +485,16 @@ export function TakenProvider({ children }: { children: React.ReactNode }) {
       loaded,
       error,
       today,
+      plan,
+      planAction,
+      reloadPlan,
+      settings,
+      setSettings,
+      addRef,
+    ]
+  );
+  const actions = useMemo<ActionsCtx>(
+    () => ({
       addTasks,
       updateTask,
       removeTask,
@@ -494,14 +503,34 @@ export function TakenProvider({ children }: { children: React.ReactNode }) {
       createNote,
       updateNote,
       removeNote,
-      editing,
-      toast,
+      openTask: setEditing,
       notify,
       undoLast,
       changeTask,
-      plan,
-      planAction,
-      reloadPlan,
+      openPalette,
+      setFocusOpen,
+    }),
+    [
+      addTasks,
+      updateTask,
+      removeTask,
+      mergeTasks,
+      reload,
+      createNote,
+      updateNote,
+      removeNote,
+      setEditing,
+      notify,
+      undoLast,
+      changeTask,
+      openPalette,
+      setFocusOpen,
+    ]
+  );
+  const ui = useMemo<UiCtx>(
+    () => ({
+      editing,
+      toast,
       focus,
       startFocus,
       pauseFocus,
@@ -509,20 +538,44 @@ export function TakenProvider({ children }: { children: React.ReactNode }) {
       stopFocus,
       focusOpen,
       palette,
-      openPalette,
-      settings,
-      setSettings,
+    }),
+    [
+      editing,
+      toast,
+      focus,
+      startFocus,
+      pauseFocus,
+      resumeFocus,
+      stopFocus,
+      focusOpen,
+      palette,
     ]
   );
 
-  return <TakenContext.Provider value={value}>{mounted ? children : null}</TakenContext.Provider>;
+  return (
+    <ActionsContext.Provider value={actions}>
+      <DataContext.Provider value={data}>
+        <UiContext.Provider value={ui}>
+          <TodayContext.Provider value={today}>{mounted ? children : null}</TodayContext.Provider>
+        </UiContext.Provider>
+      </DataContext.Provider>
+    </ActionsContext.Provider>
+  );
 }
 
-export function useTaken() {
-  const ctx = useContext(TakenContext);
-  if (!ctx) throw new Error("useTaken buiten TakenProvider");
-  return ctx;
+function need<T>(value: T | null, name: string): T {
+  if (!value) throw new Error(`${name} buiten TakenProvider`);
+  return value;
 }
+
+/** Taken, notities, instellingen en de dag. */
+export const useTakenData = () => need(useContext(DataContext), "useTakenData");
+/** Functies die nooit veranderen: een onderdeel dat alleen deze gebruikt, tekent niet opnieuw bij wijzigingen. */
+export const useTakenActions = () => need(useContext(ActionsContext), "useTakenActions");
+/** Toast, geopende taak, focus-timer en zoekvenster. */
+export const useTakenUi = () => need(useContext(UiContext), "useTakenUi");
+/** De datum van vandaag (YYYY-MM-DD). */
+export const useToday = () => useContext(TodayContext);
 
 // ----- Agenda -----
 type AgendaEntry = { at: number; from: string; to: string; data: AgendaData };
@@ -545,7 +598,8 @@ export function editAgenda(change: (events: CalendarEvent[], range: { from: stri
 
 /** Afspraken tussen twee datums; houdt 2 minuten een cache vast zodat wisselen tussen schermen snel is. */
 export function useAgenda(from: string, to: string) {
-  const { settings, mergeTasks } = useTaken();
+  const { settings } = useTakenData();
+  const { mergeTasks } = useTakenActions();
   // Andere instellingen (agenda gekoppeld of aangevinkt) = opnieuw ophalen.
   const version = JSON.stringify([
     settings?.icsSources.map((s) => s.id),

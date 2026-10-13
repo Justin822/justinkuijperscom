@@ -8,12 +8,14 @@ import CommandPalette from "./CommandPalette";
 import FocusBar from "./FocusBar";
 import { SearchIcon } from "./icons";
 import { EXTRA, NAV } from "./nav";
-import { useTaken } from "./TakenContext";
+import { useTakenActions, useTakenData, useTakenUi } from "./TakenContext";
 import TaskSheet from "./TaskSheet";
 
 export default function Shell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname() || "";
-  const { tasks, addRef, toast, editing, openTask, palette, openPalette, undoLast } = useTaken();
+  const { tasks, addRef } = useTakenData();
+  const { openTask, openPalette, undoLast } = useTakenActions();
+  const { toast, editing, palette } = useTakenUi();
   const inboxCount = tasks.filter((t) => t.status === "inbox").length;
 
   // Sneltoetsen: ⌘K of / zoekt, N voegt toe, Escape sluit.

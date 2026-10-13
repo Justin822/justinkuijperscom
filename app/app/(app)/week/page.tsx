@@ -11,7 +11,7 @@ import CalendarGrid from "../../_components/calendar/CalendarGrid";
 import { useDragSource } from "../../_components/calendar/DragLayer";
 import { durationLabel } from "../../_components/calendar/time";
 import { ChevronLeftIcon, ChevronRightIcon, GearIcon } from "../../_components/icons";
-import { useAgenda, useTaken } from "../../_components/TakenContext";
+import { useAgenda, useTakenActions, useTakenData } from "../../_components/TakenContext";
 import { isPhone, readLocal, writeLocal } from "../../_components/device";
 
 // Week: je afspraken en timeblocks over meerdere dagen. Sleep taken uit de lade de week in.
@@ -23,7 +23,8 @@ const RECONNECT_KEY = "tk-hide-reconnect";
 
 export default function WeekPage() {
   const router = useRouter();
-  const { tasks, today, openTask, settings } = useTaken();
+  const { tasks, today, settings } = useTakenData();
+  const { openTask } = useTakenActions();
   const [anchor, setAnchor] = useState(today);
   const [span, setSpan] = useState<Span>(7);
   const [tray, setTray] = useState(true);
