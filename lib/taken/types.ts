@@ -30,6 +30,8 @@ export type Task = {
   followUp: string | null;
   note: string | null;
   repeat: Repeat | null;
+  /** Bij een herhaling: de afgevinkte taak waaruit deze volgende keer is ontstaan. */
+  spawnedFrom: string | null;
   /** Timeblock in de agenda: "YYYY-MM-DDTHH:mm" (lokale tijd); duur = estimate. */
   blockStart: string | null;
   /** Minuten die je met de focus-timer aan deze taak hebt gewerkt. */
@@ -55,6 +57,8 @@ export type DayPlan = {
   closedAt: number | null;
   /** Aantal taken in de Inbox op het moment van afsluiten (voor de weekreview). */
   inboxAtClose?: number | null;
+  /** Taken die bij het afsluiten van deze dag al zijn doorgeschoven (nogmaals afsluiten telt ze niet dubbel). */
+  postponed?: string[];
 };
 
 export type Note = {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { firstDate, nextDate, repeatLabel, spawnNext } from "@/lib/taken/repeat";
+import { firstDate, nextDate, repeatLabel, spawnNext, undoSpawn } from "@/lib/taken/repeat";
 import { task, TODAY } from "./helpers";
 
 describe("nextDate", () => {
@@ -51,5 +51,31 @@ describe("repeatLabel", () => {
     expect(repeatLabel({ every: 1, unit: "dag", weekdays: [1, 2, 3, 4, 5] })).toBe("elke werkdag");
     expect(repeatLabel({ every: 2, unit: "week", weekdays: [1] })).toBe("om de 2 weken op maandag");
     expect(repeatLabel({ every: 3, unit: "maand", weekdays: null })).toBe("elke 3 maanden");
+  });
+});
+
+describe("undoSpawn", () => {
+  const repeat = { every: 1, unit: "dag" as const, weekdays: null };
+
+  it("zet de herhaling terug en ruimt de volgende keer op", () => {
+    const t = task({ planDate: TODAY, repeat });
+    const next = spawnNext(t, TODAY, 1000)!;
+    const reopened = { ...t, repeat: null, status: "gepland" as const };
+    const result = undoSpawn(reopened, [reopened, next]);
+    expect(result.task.repeat).toEqual(repeat);
+    expect(result.remove?.id).toBe(next.id);
+  });
+
+  it("laat een volgende keer staan waar je al aan hebt gewerkt", () => {
+    const t = task({ planDate: TODAY, repeat });
+    const next = { ...spawnNext(t, TODAY, 1000)!, updatedAt: 2000 };
+    const result = undoSpawn({ ...t, repeat: null }, [next]);
+    expect(result.remove).toBeNull();
+    expect(result.task.repeat).toBeNull();
+  });
+
+  it("doet niets bij een taak die nog herhaalt", () => {
+    const t = task({ repeat });
+    expect(undoSpawn(t, [])).toEqual({ task: t, remove: null });
   });
 });

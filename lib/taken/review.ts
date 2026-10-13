@@ -28,7 +28,9 @@ export function computeReview(
   dates: string[],
   plans: (DayPlan | null)[],
   tasks: Task[],
-  dayOf: (ms: number) => string = localToday
+  dayOf: (ms: number) => string = localToday,
+  /** Focusminuten per dag en per gebied ("geen" = zonder gebied), uit de focuslog. */
+  focus: Record<string, number>[] = []
 ) {
   const byId = new Map(tasks.map((t) => [t.id, t]));
   const inWeek = (ms: number | null) => Boolean(ms && dates.includes(dayOf(ms)));
@@ -59,8 +61,8 @@ export function computeReview(
     name,
     color,
     done: done.filter((t) => t.areaId === areaId).length,
-    // Focusminuten van taken die deze week af zijn of nog open staan.
-    focusMinutes: [...done, ...open].filter((t) => t.areaId === areaId).reduce((sum, t) => sum + (t.focusMinutes || 0), 0),
+    // Alleen de minuten die deze week gewerkt zijn.
+    focusMinutes: focus.reduce((sum, day) => sum + (day[areaId || "geen"] || 0), 0),
     open: open.filter((t) => t.areaId === areaId).length,
     postponed: open.filter((t) => t.areaId === areaId && t.postponed > 0).length,
   });

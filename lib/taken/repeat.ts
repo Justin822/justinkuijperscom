@@ -63,6 +63,18 @@ export function firstDate(repeat: Repeat, today: string): string {
   return today;
 }
 
+/**
+ * Een afgevinkte terugkerende taak weer openzetten (bijv. "Ongedaan maken"): de herhaling gaat terug
+ * naar deze taak en de volgende keer die bij het afvinken ontstond verdwijnt weer,
+ * zolang je daar nog niets aan hebt veranderd.
+ */
+export function undoSpawn(reopened: Task, tasks: Task[]): { task: Task; remove: Task | null } {
+  if (reopened.repeat) return { task: reopened, remove: null };
+  const next = tasks.find((t) => t.spawnedFrom === reopened.id && t.status !== "af" && t.updatedAt === t.createdAt);
+  if (!next) return { task: reopened, remove: null };
+  return { task: { ...reopened, repeat: next.repeat }, remove: next };
+}
+
 /** De volgende taak in de reeks, of null als de taak niet herhaalt. */
 export function spawnNext(task: Task, today: string, now = Date.now()): Task | null {
   if (!task.repeat) return null;
@@ -73,6 +85,7 @@ export function spawnNext(task: Task, today: string, now = Date.now()): Task | n
   return {
     ...task,
     id: newId(now),
+    spawnedFrom: task.id,
     status: "gepland",
     planDate: next,
     deadline: task.deadline ? addDays(task.deadline, shift) : null,

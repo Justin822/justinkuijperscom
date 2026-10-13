@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { blockInterval, freeMinutes, type Interval } from "@/lib/taken/agenda";
 import { AREA_BY_ID, OPEN_STATUSES } from "@/lib/taken/config";
 import { addDays, formatLong, formatRelative, isIsoDate, weekday } from "@/lib/taken/dates";
@@ -59,6 +59,16 @@ export default function TodayPage() {
   const dragSource = useDragSource();
   const hour = new Date().getHours();
   const isToday = date === today;
+
+  // Over middernacht heen: wie naar vandaag keek, kijkt daarna naar de nieuwe dag.
+  const shownToday = useRef(today);
+  useEffect(() => {
+    if (shownToday.current === today) return;
+    setDate((d) => (d === shownToday.current ? today : d));
+    shownToday.current = today;
+  }, [today]);
+  /** De dag na de dag die je bekijkt, maar nooit eerder dan morgen. */
+  const nextDay = addDays(date > today ? date : today, 1);
 
   useEffect(() => {
     try {
@@ -427,9 +437,13 @@ export default function TodayPage() {
                   ...(menu.reason ? [{ label: "Waarom deze?", hint: "", onSelect: () => notify(menu.reason as string) }] : []),
                   { label: "Inplannen", onSelect: () => schedule(menu.task as Task) },
                   {
-                    label: "Naar morgen",
+                    label: date > today ? "Naar de dag erna" : "Naar morgen",
                     onSelect: () =>
-                      changeTask((menu.task as Task).id, { planDate: addDays(today, 1), blockStart: null }, "Naar morgen verplaatst"),
+                      changeTask(
+                        (menu.task as Task).id,
+                        { planDate: nextDay, blockStart: null },
+                        `Verplaatst naar ${formatRelative(nextDay, today)}`
+                      ),
                   },
                   ...(pickIds.includes(menu.task.id) && !plan?.closedAt
                     ? [{ label: "Wissel uit top 3", onSelect: () => planAction("swap", (menu.task as Task).id) }]

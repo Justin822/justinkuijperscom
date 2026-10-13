@@ -42,3 +42,48 @@ test("afvinken en ongedaan maken", async ({ app }) => {
     .poll(async () => (await (await app.request.get("/api/taken/tasks")).json()).tasks[0].status)
     .toBe("gepland");
 });
+test("een terugkerende taak afvinken en terugdraaien laat geen dubbele achter", async ({ app }) => {
+  await app.request.post("/api/taken/tasks", {
+    data: { tasks: [{ title: "Elke dag", status: "gepland", repeat: { every: 1, unit: "dag", weekdays: null } }] },
+  });
+  await app.goto("/app/taken?lijst=open");
+  const row = app.locator(".tk-row, li, [data-task]").filter({ hasText: "Elke dag" }).first();
+  await row.getByLabel("Afvinken").click();
+  await app.getByRole("button", { name: /ongedaan/i }).click();
+
+  await expect
+    .poll(async () => {
+      const { tasks } = await (await app.request.get("/api/taken/tasks")).json();
+      return tasks.map((t: any) => `${t.status}:${t.repeat ? "herhaalt" : "-"}`).sort();
+    })
+    .toEqual(["gepland:herhaalt"]);
+});
+
+test("twee keer de dag afsluiten schuift taken maar één keer door", async ({ app }) => {
+  const today = await app.evaluate(() => new Intl.DateTimeFormat("en-CA").format(new Date()));
+  await app.request.post("/api/taken/tasks", {
+    data: { tasks: [{ title: "Bleef liggen", status: "gepland", planDate: today, blockStart: `${today}T10:00` }] },
+  });
+  const { tasks } = await (await app.request.get("/api/taken/tasks")).json();
+  const id = tasks[0].id;
+  for (let i = 0; i < 2; i++) {
+    const res = await app.request.post("/api/taken/close", { data: { date: today, postpone: [id] } });
+    expect(res.ok()).toBe(true);
+  }
+  const after = (await (await app.request.get("/api/taken/tasks")).json()).tasks[0];
+  expect(after.postponed).toBe(1);
+  expect(after.planDate > today).toBe(true);
+  expect(after.blockStart).toBeNull();
+});
+
+test("Esc in het taakvenster bewaart je wijziging", async ({ app }) => {
+  await app.request.post("/api/taken/tasks", { data: { tasks: [{ title: "Oude titel", status: "gepland" }] } });
+  await app.goto("/app/taken?lijst=open");
+  await app.getByText("Oude titel").click();
+  await app.getByLabel("Titel").fill("Nieuwe titel");
+  await app.keyboard.press("Escape");
+  await expect(app.getByRole("dialog")).toHaveCount(0);
+  await expect
+    .poll(async () => (await (await app.request.get("/api/taken/tasks")).json()).tasks[0].title)
+    .toBe("Nieuwe titel");
+});

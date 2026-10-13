@@ -12,6 +12,8 @@ import { api, useTaken } from "../../_components/TakenContext";
 
 // Weekreview: de succescriteria uit je plan, per gebied wat er gebeurd is, en je focus voor volgende week.
 
+type ReviewData = { dates: string[]; plans: (DayPlan | null)[]; focus: Record<string, number>[] };
+
 /** ISO-weeknummer. */
 function weekNumber(monday: string) {
   const thursday = addDays(monday, 3);
@@ -37,13 +39,13 @@ export default function ReviewPage() {
   const { tasks, today, createNote, notify, openTask } = useTaken();
   const thisMonday = addDays(today, -((weekday(today) + 6) % 7));
   const [monday, setMonday] = useState(thisMonday);
-  const [data, setData] = useState<{ dates: string[]; plans: (DayPlan | null)[] } | null>(null);
+  const [data, setData] = useState<ReviewData | null>(null);
   const [focusText, setFocusText] = useState("");
 
   useEffect(() => {
     let cancelled = false;
     setData(null);
-    api<{ dates: string[]; plans: (DayPlan | null)[] }>(`/api/taken/review?from=${monday}`)
+    api<ReviewData>(`/api/taken/review?from=${monday}`)
       .then((d) => !cancelled && setData(d))
       .catch((err) => notify(err.message));
     return () => {
@@ -51,7 +53,7 @@ export default function ReviewPage() {
     };
   }, [monday, notify]);
 
-  const review = useMemo(() => (data ? computeReview(data.dates, data.plans, tasks) : null), [data, tasks]);
+  const review = useMemo(() => (data ? computeReview(data.dates, data.plans, tasks, undefined, data.focus) : null), [data, tasks]);
   const week = weekNumber(monday);
   const sunday = addDays(monday, 6);
   const range = `${Number(monday.slice(8))} ${MONTHS[Number(monday.slice(5, 7)) - 1].slice(0, 3)} – ${Number(sunday.slice(8))} ${MONTHS[Number(sunday.slice(5, 7)) - 1].slice(0, 3)}`;
@@ -69,10 +71,14 @@ export default function ReviewPage() {
       "Focus volgende week",
       focusText.trim(),
     ];
-    const note = await createNote({ body: lines.join("\n") });
-    setFocusText("");
-    notify("Opgeslagen als notitie");
-    router.push(`/app/notities/${note.id}`);
+    try {
+      const note = await createNote({ body: lines.join("\n") });
+      setFocusText("");
+      notify("Opgeslagen als notitie");
+      router.push(`/app/notities/${note.id}`);
+    } catch (err: any) {
+      notify(err.message);
+    }
   };
 
   return (

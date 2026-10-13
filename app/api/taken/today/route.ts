@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { makePlan } from "@/lib/taken/score";
+import { makePlan, promotePick } from "@/lib/taken/score";
 import { getDay, getTasks, saveDay } from "@/lib/taken/store";
 import { dayContext, dayFrom, fail, noStore, recentPlans, syncPlan } from "@/lib/taken/server";
 import type { DayPlan } from "@/lib/taken/types";
@@ -43,12 +43,10 @@ export async function POST(request: Request) {
         swapped: Array.from(new Set([...plan.swapped, id])),
       });
     } else if (body?.action === "promote" && id && !plan.top3.some((p) => p.id === id)) {
-      // Zelf een taak in de top 3 zetten: die vervangt de laatste nog open taak.
+      // Zelf een taak in de top 3 zetten (zie promotePick).
       const tasks = await getTasks();
       const done = new Set(tasks.filter((t) => t.status === "af").map((t) => t.id));
-      const openPicks = plan.top3.filter((p) => !done.has(p.id));
-      const drop = openPicks.length >= 3 ? openPicks[openPicks.length - 1].id : null;
-      const top3 = [...plan.top3.filter((p) => p.id !== drop), { id, reason: "Zelf gekozen" }];
+      const top3 = promotePick(plan.top3, id, done);
       plan = await syncPlan({ ...plan, top3, swapped: plan.swapped.filter((s) => s !== id) }, tasks);
       await saveDay(plan);
     } else if (body?.action === "recompute") {

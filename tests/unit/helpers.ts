@@ -24,6 +24,7 @@ export function task(fields: Partial<Task> = {}): Task {
     followUp: null,
     note: null,
     repeat: null,
+    spawnedFrom: null,
     blockStart: null,
     focusMinutes: 0,
     googleEventId: null,

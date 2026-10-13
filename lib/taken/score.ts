@@ -139,3 +139,17 @@ export function makePlan(tasks: Task[], today: string, recent: DayPlan[], ctx: D
     closedAt: null,
   };
 }
+
+/**
+ * Zelf een taak in de top 3 zetten. Bij een volle top 3 maakt eerst de laatste nog open taak plaats,
+ * en als alles al af is de laatste afgevinkte. De top 3 wordt nooit langer dan drie.
+ */
+export function promotePick(top3: Pick[], id: string, done: Set<string>): Pick[] {
+  const rest = top3.filter((p) => p.id !== id);
+  if (rest.length >= 3) {
+    const open = rest.filter((p) => !done.has(p.id));
+    const drop = (open.length ? open : rest)[(open.length ? open : rest).length - 1].id;
+    rest.splice(rest.findIndex((p) => p.id === drop), 1);
+  }
+  return [...rest.slice(0, 2), { id, reason: "Zelf gekozen" }];
+}

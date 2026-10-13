@@ -47,7 +47,7 @@ export default function ClosePage() {
       const postpone = todays.filter((t) => t.status !== "af" && !keep.includes(t.id)).map((t) => t.id);
       const data = await api<{ tasks: Task[] }>("/api/taken/close", {
         method: "POST",
-        body: JSON.stringify({ date: today, postpone, done: [] }),
+        body: JSON.stringify({ date: today, postpone }),
       });
       mergeTasks(data.tasks);
       setPostponedCount(postpone.length);

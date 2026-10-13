@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ESTIMATES, estimateLabel, IMPACT_LABEL, STATUS_LABEL } from "@/lib/taken/config";
 import { addDays, weekday, WEEKDAYS } from "@/lib/taken/dates";
 import type { Impact, Repeat, Status, Task } from "@/lib/taken/types";
@@ -39,10 +39,25 @@ export default function TaskSheet({ id }: { id: string }) {
   const { tasks, openTask, updateTask, removeTask, notify, today, addTasks, startFocus } = useTaken();
   const task = tasks.find((t) => t.id === id);
   const [draft, setDraft] = useState<Task | null>(task || null);
+  // De stand bij openen: alleen wat je zelf in het venster verandert gaat mee bij opslaan,
+  // zodat wijzigingen die intussen binnenkomen (bijv. uit Google Agenda) blijven staan.
+  const [initial] = useState<Task | null>(task || null);
+  const saveRef = useRef<() => void>(() => {});
 
   useEffect(() => {
     if (!task) openTask(null);
   }, [task, openTask]);
+
+  // Esc sluit het venster en bewaart je wijzigingen, net als klikken ernaast.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape" || e.defaultPrevented) return;
+      e.preventDefault();
+      saveRef.current();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
 
   const projects = useMemo(
     () =>
@@ -56,13 +71,13 @@ export default function TaskSheet({ id }: { id: string }) {
     [tasks, draft?.areaId]
   );
 
-  if (!task || !draft) return null;
+  if (!task || !draft || !initial) return null;
   const set = <K extends keyof Task>(key: K, value: Task[K]) => setDraft((d) => (d ? { ...d, [key]: value } : d));
 
   const changes = () => {
     const patch: Partial<Task> = {};
     (Object.keys(draft) as (keyof Task)[]).forEach((k) => {
-      if (JSON.stringify(draft[k]) !== JSON.stringify(task[k])) (patch as any)[k] = draft[k];
+      if (JSON.stringify(draft[k]) !== JSON.stringify(initial[k])) (patch as any)[k] = draft[k];
     });
     if (!draft.title.trim()) delete patch.title;
     return patch;
@@ -73,6 +88,7 @@ export default function TaskSheet({ id }: { id: string }) {
     if (Object.keys(patch).length) updateTask(task.id, patch);
     openTask(null);
   };
+  saveRef.current = save;
 
   const remove = () => {
     removeTask(task.id);

@@ -222,11 +222,13 @@ export function TakenProvider({ children }: { children: React.ReactNode }) {
       if (patch.status === "af" && before.status !== "af") optimistic.doneAt = Date.now();
       mergeTasks([optimistic]);
       try {
-        const data = await api<{ task: Task; created?: Task[]; sync?: string }>(`/api/taken/tasks/${id}`, {
+        const data = await api<{ task: Task; created?: Task[]; removed?: string[]; sync?: string }>(`/api/taken/tasks/${id}`, {
           method: "PATCH",
           body: JSON.stringify({ ...patch, today: localToday() }),
         });
         mergeTasks([data.task, ...(data.created || [])]);
+        // Weer opengezette herhaling: de volgende keer die het afvinken had gemaakt is weg.
+        if (data.removed?.length) setTasks((list) => list.filter((t) => !data.removed!.includes(t.id)));
         if (data.sync === "fout") notify("Opgeslagen, maar niet in Google Agenda gezet");
       } catch (err: any) {
         mergeTasks([before]);

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { makePlan, pickTop, rankTasks } from "@/lib/taken/score";
+import { makePlan, pickTop, promotePick, rankTasks } from "@/lib/taken/score";
 import { task, TODAY } from "./helpers";
 
 describe("rankTasks", () => {
@@ -43,5 +43,21 @@ describe("makePlan", () => {
     expect(plan.top3).toHaveLength(3);
     expect(plan.areas).toHaveLength(3);
     expect(plan.closedAt).toBeNull();
+  });
+});
+
+describe("promotePick", () => {
+  const picks = (...ids: string[]) => ids.map((id) => ({ id, reason: "" }));
+
+  it("vervangt de laatste open taak", () => {
+    expect(promotePick(picks("a", "b", "c"), "x", new Set(["c"])).map((p) => p.id)).toEqual(["a", "c", "x"]);
+  });
+
+  it("blijft drie lang als alles al af is", () => {
+    expect(promotePick(picks("a", "b", "c"), "x", new Set(["a", "b", "c"])).map((p) => p.id)).toEqual(["a", "b", "x"]);
+  });
+
+  it("vult aan bij een niet-volle top 3", () => {
+    expect(promotePick(picks("a"), "x", new Set()).map((p) => p.id)).toEqual(["a", "x"]);
   });
 });

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { syncBlock } from "@/lib/taken/google";
-import { deleteTask, getTask, saveTasks } from "@/lib/taken/store";
+import { undoSpawn } from "@/lib/taken/repeat";
+import { addFocus, deleteTask, getTask, getTasks, NO_AREA, saveTasks } from "@/lib/taken/store";
 import { completeWithRepeat, dayFrom, fail } from "@/lib/taken/server";
 import { applyPatch, cleanPatch } from "@/lib/taken/validate";
 
@@ -21,11 +22,25 @@ export async function PATCH(request: Request, { params }: Context) {
       next = result.done;
       if (result.next) created.push(result.next);
     }
+    // Weer opengezet (ook via "Ongedaan maken"): geen dubbele reeks laten staan.
+    const removed: string[] = [];
+    if (task.status === "af" && next.status !== "af") {
+      const undo = undoSpawn(next, await getTasks());
+      next = undo.task;
+      if (undo.remove) {
+        if (undo.remove.googleEventId) await syncBlock(undo.remove, null);
+        await deleteTask(undo.remove.id);
+        removed.push(undo.remove.id);
+      }
+    }
     // Timeblock gelijk houden met de agenda "Planner" in Google.
     const sync = await syncBlock(task, next);
     next = { ...next, googleEventId: sync.eventId, googleSyncedAt: sync.syncedAt };
     await saveTasks([next, ...created]);
-    return NextResponse.json({ task: next, created, sync: sync.error ? "fout" : "ok" });
+    // Focus-timer: de gewerkte minuten ook per dag bijhouden, voor de weekreview.
+    const focused = next.focusMinutes - task.focusMinutes;
+    if (focused > 0) await addFocus(dayFrom(body?.today), task.areaId || NO_AREA, focused);
+    return NextResponse.json({ task: next, created, removed, sync: sync.error ? "fout" : "ok" });
   } catch (error) {
     return fail("task PATCH", error, "Kon de taak niet bijwerken.");
   }

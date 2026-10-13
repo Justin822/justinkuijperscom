@@ -18,6 +18,11 @@ export const DEFAULT_SETTINGS: Settings = {
   google: null,
 };
 const dayKey = (date: string) => `taken:day:${date}`;
+const focusKey = (date: string) => `taken:focus:${date}`;
+
+/** Focusminuten van één dag per gebied ("geen" = zonder gebied). */
+export type FocusLog = Record<string, number>;
+export const NO_AREA = "geen";
 
 export const storageKind: "redis" | "file" = hasRedis ? "redis" : "file";
 
@@ -25,6 +30,7 @@ type FileData = {
   tasks: Record<string, Task>;
   days: Record<string, DayPlan>;
   notes: Record<string, Note>;
+  focus?: Record<string, FocusLog>;
   settings?: Settings;
 };
 
@@ -35,7 +41,7 @@ const dataFile =
 async function readFile(): Promise<FileData> {
   try {
     const data = JSON.parse(await fs.readFile(dataFile, "utf8"));
-    return { tasks: data.tasks || {}, days: data.days || {}, notes: data.notes || {}, settings: data.settings };
+    return { tasks: data.tasks || {}, days: data.days || {}, notes: data.notes || {}, focus: data.focus || {}, settings: data.settings };
   } catch {
     return { tasks: {}, days: {}, notes: {} };
   }
@@ -132,8 +138,36 @@ export async function saveDay(plan: DayPlan) {
     });
     return;
   }
-  // Een dagplan is alleen een paar dagen nodig (voor de balans tussen gebieden).
-  await redis(["SET", dayKey(plan.date), JSON.stringify(plan), "EX", String(60 * 60 * 24 * 60)]);
+  // Dagplannen blijven bewaard, zodat de weekreview ook voor oudere weken klopt.
+  await redis(["SET", dayKey(plan.date), JSON.stringify(plan)]);
+}
+
+/** Gewerkte focusminuten bijschrijven op een dag (atomair, ook bij gelijktijdige verzoeken). */
+export async function addFocus(date: string, area: string, minutes: number) {
+  if (minutes <= 0) return;
+  if (storageKind === "file") {
+    await editFile((data) => {
+      const day = ((data.focus ||= {})[date] ||= {});
+      day[area] = (day[area] || 0) + minutes;
+    });
+    return;
+  }
+  await redis(["HINCRBY", focusKey(date), area, String(Math.round(minutes))]);
+}
+
+export async function getFocus(dates: string[]): Promise<FocusLog[]> {
+  if (storageKind === "file") {
+    const data = await readFile();
+    return dates.map((d) => data.focus?.[d] || {});
+  }
+  return Promise.all(
+    dates.map(async (d) => {
+      const flat = ((await redis(["HGETALL", focusKey(d)])) as string[] | null) || [];
+      const log: FocusLog = {};
+      for (let i = 0; i < flat.length; i += 2) log[flat[i]] = Number(flat[i + 1]) || 0;
+      return log;
+    })
+  );
 }
 
 export async function getNotes(): Promise<Note[]> {

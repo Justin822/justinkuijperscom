@@ -42,7 +42,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
           window.scrollTo({ top: 0 });
           addRef.current.focus();
         } else openPalette("add");
-      } else if (e.key === "Escape" && editing) openTask(null);
+      }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -102,7 +102,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
         ))}
       </nav>
       <FocusBar />
-      {editing && <TaskSheet id={editing} />}
+      {editing && <TaskSheet key={editing} id={editing} />}
       {palette && <CommandPalette />}
       {toast && (
         <div className="tk-toast" role="status">
