@@ -2,10 +2,13 @@ import { NextResponse } from "next/server";
 import { getNotes, saveNote } from "@/lib/taken/store";
 import { fail, noStore } from "@/lib/taken/server";
 import { newNote } from "@/lib/taken/validate";
+import { requireAccess } from "@/lib/taken/session";
 
 export const dynamic = "force-dynamic";
 
-export async function GET() {
+export async function GET(request: Request) {
+  const denied = await requireAccess(request);
+  if (denied) return denied;
   try {
     return NextResponse.json({ notes: await getNotes() }, { headers: noStore });
   } catch (error) {
@@ -14,6 +17,8 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
+  const denied = await requireAccess(request);
+  if (denied) return denied;
   try {
     const note = newNote(await request.json().catch(() => ({})));
     await saveNote(note);

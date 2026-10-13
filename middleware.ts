@@ -12,7 +12,7 @@ const OPEN = ["/api/rankingthestars/login", "/rankingthestars/toegang"];
 
 const TAKEN_PROTECTED = /^\/(app|api\/taken)(\/|$)/;
 // Snel invoeren werkt met een eigen sleutel (zie app/api/taken/capture), niet met het cookie.
-const TAKEN_OPEN = ["/api/taken/login", "/app/toegang", "/api/taken/capture", "/api/taken/capture/today"];
+const TAKEN_OPEN = ["/api/taken/login", "/api/taken/logout", "/app/toegang", "/api/taken/capture", "/api/taken/capture/today"];
 
 export async function middleware(request: NextRequest) {
   const url = request.nextUrl.clone();
@@ -31,9 +31,8 @@ export async function middleware(request: NextRequest) {
 
   if (TAKEN_PROTECTED.test(url.pathname)) {
     if (TAKEN_OPEN.includes(url.pathname)) return pass();
-    const pw = taken.password();
-    const expected = pw ? await taken.accessToken(pw) : null;
-    if (expected && request.cookies.get(taken.ACCESS_COOKIE)?.value === expected) return pass();
+    // Alleen de handtekening; of de sessie nog bestaat controleren de API-routes zelf (lib/taken/session.ts).
+    if (await taken.verifySession(request.cookies.get(taken.ACCESS_COOKIE)?.value)) return pass();
     if (url.pathname.startsWith("/api/")) {
       return NextResponse.json({ error: "Log eerst in." }, { status: 401 });
     }

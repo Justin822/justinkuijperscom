@@ -108,6 +108,8 @@ Elk apparaat krijgt een eigen sleutel; alleen een hash wordt bewaard en intrekke
 ### Setup op Vercel
 
 1. `TAKEN_PASSWORD`: wachtwoord voor de app. Lokaal is het `taken`.
+   - `TAKEN_SECRET` (aanbevolen): een lange willekeurige tekst, bijv. uit `openssl rand -base64 32`. Daarmee worden sessies ondertekend en staat het Google-token versleuteld in de database. Zonder deze variabele worden sessies met het wachtwoord ondertekend en blijft het token onversleuteld.
+   - Elk apparaat krijgt bij inloggen een eigen sessie (180 dagen). In **Instellingen → Apparaten** zie je waar je bent ingelogd en log je één of alle andere apparaten uit. Na tien foute wachtwoorden vanaf één adres moet je een kwartier wachten.
 2. Opslag gebruikt dezelfde Upstash Redis als Ranking the Stars (`KV_REST_API_URL`/`_TOKEN`, gratis tier). Zonder Redis gaat alles in een tijdelijk bestand dat op Vercel niet bewaard blijft.
 3. Agenda's koppel je in de app zelf: **Instellingen** (zijbalk, of het tandwiel in Week).
    - **Outlook**: plak de ICS-link. In Outlook op het web vind je die via Instellingen → Agenda → Gedeelde agenda's → "Een agenda publiceren" → "Kan alle details bekijken" → ICS-link. Ontbreekt die optie bij Appèl, dan heeft IT publiceren uitgezet.

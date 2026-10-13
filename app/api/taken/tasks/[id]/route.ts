@@ -4,12 +4,15 @@ import { undoSpawn } from "@/lib/taken/repeat";
 import { addFocus, deleteTask, getTask, getTasks, NO_AREA, saveTasks } from "@/lib/taken/store";
 import { completeWithRepeat, dayFrom, fail } from "@/lib/taken/server";
 import { applyPatch, cleanPatch } from "@/lib/taken/validate";
+import { requireAccess } from "@/lib/taken/session";
 
 export const dynamic = "force-dynamic";
 
 type Context = { params: { id: string } };
 
 export async function PATCH(request: Request, { params }: Context) {
+  const denied = await requireAccess(request);
+  if (denied) return denied;
   try {
     const task = await getTask(params.id);
     if (!task) return NextResponse.json({ error: "Deze taak bestaat niet meer." }, { status: 404 });
@@ -46,7 +49,9 @@ export async function PATCH(request: Request, { params }: Context) {
   }
 }
 
-export async function DELETE(_request: Request, { params }: Context) {
+export async function DELETE(request: Request, { params }: Context) {
+  const denied = await requireAccess(request);
+  if (denied) return denied;
   try {
     const task = await getTask(params.id);
     if (task?.googleEventId) await syncBlock(task, null);

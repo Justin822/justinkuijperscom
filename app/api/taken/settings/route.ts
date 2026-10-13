@@ -1,18 +1,21 @@
 import { NextResponse } from "next/server";
-import { clearIcsCache, normalizeIcsUrl, testIcs } from "@/lib/taken/agenda-server";
+import { clearIcsCache, isPublicHttpsUrl, normalizeIcsUrl, testIcs } from "@/lib/taken/agenda-server";
 import { disconnect, refreshCalendars, selectCalendars, setDefaultCalendar } from "@/lib/taken/google";
 import { fail, noStore } from "@/lib/taken/server";
 import { hashToken, makeToken } from "@/lib/taken/capture";
 import { publicSettings } from "@/lib/taken/settings";
 import { getSettings, updateSettings } from "@/lib/taken/store";
 import { newId } from "@/lib/taken/validate";
+import { requireAccess } from "@/lib/taken/session";
 
 export const dynamic = "force-dynamic";
 
 const TIME = /^([01]\d|2[0-3]):[0-5]\d$/;
 const bad = (error: string) => NextResponse.json({ error }, { status: 400 });
 
-export async function GET() {
+export async function GET(request: Request) {
+  const denied = await requireAccess(request);
+  if (denied) return denied;
   try {
     return NextResponse.json({ settings: publicSettings(await getSettings()) }, { headers: noStore });
   } catch (error) {
@@ -21,6 +24,8 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
+  const denied = await requireAccess(request);
+  if (denied) return denied;
   try {
     const body = await request.json().catch(() => ({}));
     const reply = async (extra: object = {}) =>
@@ -30,7 +35,7 @@ export async function POST(request: Request) {
       case "addIcs": {
         const url = normalizeIcsUrl(typeof body.url === "string" ? body.url : "");
         const name = (typeof body.name === "string" && body.name.trim().slice(0, 40)) || "Outlook";
-        if (!/^https?:\/\/\S+$/i.test(url)) return bad("Plak een link die begint met https:// of webcal://.");
+        if (!isPublicHttpsUrl(url)) return bad("Plak een openbare link die begint met https:// of webcal://.");
         const settings = await getSettings();
         if (settings.icsSources.length >= 10) return bad("Je kunt maximaal 10 agenda-links toevoegen.");
         if (settings.icsSources.some((s) => s.url === url)) return bad("Deze agenda staat er al in.");

@@ -3,12 +3,15 @@ import { closeDay } from "@/lib/taken/close";
 import { syncBlock } from "@/lib/taken/google";
 import { getDay, getTasks, saveDay, saveTasks } from "@/lib/taken/store";
 import { dayFrom, fail } from "@/lib/taken/server";
+import { requireAccess } from "@/lib/taken/session";
 
 export const dynamic = "force-dynamic";
 
 // Dagafsluiting: de rest van vandaag schuift door (teller +1), zie lib/taken/close.ts.
 
 export async function POST(request: Request) {
+  const denied = await requireAccess(request);
+  if (denied) return denied;
   try {
     const body = await request.json().catch(() => ({}));
     const date = dayFrom(body?.date);

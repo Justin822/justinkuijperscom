@@ -15,6 +15,10 @@ const FLASH: Record<string, string> = {
   "niet-ingesteld": "Google is nog niet ingesteld. Volg de stappen hieronder.",
 };
 
+type SessionRow = { id: string; device: string; createdAt: number; lastSeenAt: number; current: boolean };
+
+const shortDate = (ms: number) => new Date(ms).toLocaleDateString("nl-NL", { day: "numeric", month: "short", year: "numeric" });
+
 function Section({ title, intro, children }: { title: string; intro?: React.ReactNode; children: React.ReactNode }) {
   return (
     <section className="tk-section" style={{ marginTop: 36 }}>
@@ -37,6 +41,29 @@ export default function SettingsPage() {
   const [workday, setWorkday] = useState(settings?.workday || { start: "09:00", end: "17:30" });
   const [keyName, setKeyName] = useState("");
   const [newKey, setNewKey] = useState<string | null>(null);
+  const [sessions, setSessions] = useState<SessionRow[] | null>(null);
+
+  const loadSessions = () =>
+    api<{ sessions: SessionRow[] }>("/api/taken/sessions")
+      .then((d) => setSessions(d.sessions))
+      .catch(() => setSessions([]));
+  useEffect(() => {
+    loadSessions();
+  }, []);
+
+  const logout = async (id: string, label: string) => {
+    try {
+      await api(`/api/taken/sessions?id=${encodeURIComponent(id)}`, { method: "DELETE" });
+      if (id === sessions?.find((x) => x.current)?.id) {
+        window.location.href = "/app/toegang";
+        return;
+      }
+      notify(label);
+      loadSessions();
+    } catch (err: any) {
+      notify(err.message);
+    }
+  };
 
   // Melding na terugkomst van Google, daarna de adresbalk opschonen.
   useEffect(() => {
@@ -416,6 +443,42 @@ export default function SettingsPage() {
             aria-label="Einde werkdag"
           />
         </div>
+      </Section>
+
+      <Section title="Apparaten" intro="Overal waar je bent ingelogd. Uitloggen werkt meteen, ook op een apparaat dat je kwijt bent.">
+        {sessions === null ? (
+          <div className="tk-muted text-sm">Laden…</div>
+        ) : (
+          <div className="tk-list">
+            {sessions.map((x) => (
+              <div key={x.id} className="tk-row items-center" style={{ padding: "9px 0" }}>
+                <div className="min-w-0 flex-1">
+                  <div className="font-medium">
+                    {x.device}
+                    {x.current && <span className="tk-muted text-sm font-normal"> · dit apparaat</span>}
+                  </div>
+                  <div className="tk-faint text-xs">
+                    Ingelogd {shortDate(x.createdAt)} · laatst actief {shortDate(x.lastSeenAt)}
+                  </div>
+                </div>
+                <button type="button" className="tk-btn tk-btn-ghost tk-btn-sm" onClick={() => logout(x.id, `${x.device} uitgelogd`)}>
+                  Uitloggen
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+        {sessions && sessions.length > 1 && (
+          <button
+            type="button"
+            className="tk-btn tk-btn-danger tk-btn-sm mt-3"
+            onClick={() => {
+              if (window.confirm("Op alle andere apparaten uitloggen?")) logout("anderen", "Andere apparaten uitgelogd");
+            }}
+          >
+            Overal anders uitloggen
+          </button>
+        )}
       </Section>
     </div>
   );

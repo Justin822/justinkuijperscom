@@ -2,6 +2,7 @@ import { promises as fs } from "fs";
 import os from "os";
 import path from "path";
 import { hasRedis, redis } from "@/lib/redis";
+import { seal, unseal } from "./secrets";
 import type { DayPlan, Note, Settings, Task } from "./types";
 import { normalizeTask } from "./validate";
 
@@ -19,6 +20,11 @@ export const DEFAULT_SETTINGS: Settings = {
 };
 const dayKey = (date: string) => `taken:day:${date}`;
 const focusKey = (date: string) => `taken:focus:${date}`;
+const SESSIONS_KEY = "taken:sessions";
+const loginFailKey = (who: string) => `taken:login-fail:${who}`;
+
+/** Een ingelogd apparaat. */
+export type Session = { id: string; createdAt: number; lastSeenAt: number; device: string };
 
 /** Focusminuten van één dag per gebied ("geen" = zonder gebied). */
 export type FocusLog = Record<string, number>;
@@ -31,6 +37,7 @@ type FileData = {
   days: Record<string, DayPlan>;
   notes: Record<string, Note>;
   focus?: Record<string, FocusLog>;
+  sessions?: Record<string, Session>;
   settings?: Settings;
 };
 
@@ -41,7 +48,7 @@ const dataFile =
 async function readFile(): Promise<FileData> {
   try {
     const data = JSON.parse(await fs.readFile(dataFile, "utf8"));
-    return { tasks: data.tasks || {}, days: data.days || {}, notes: data.notes || {}, focus: data.focus || {}, settings: data.settings };
+    return { tasks: data.tasks || {}, days: data.days || {}, notes: data.notes || {}, focus: data.focus || {}, sessions: data.sessions || {}, settings: data.settings };
   } catch {
     return { tasks: {}, days: {}, notes: {} };
   }
@@ -200,34 +207,108 @@ export async function deleteNote(id: string) {
   await redis(["HDEL", NOTES_KEY, id]);
 }
 
+// Het Google-token staat versleuteld in de opslag (als TAKEN_SECRET is ingesteld).
+function openSettings(stored: Settings | null | undefined): Settings {
+  const settings = { ...DEFAULT_SETTINGS, ...(stored || {}) };
+  if (!settings.google) return settings;
+  const token = unseal(settings.google.refreshToken);
+  // Niet te ontsleutelen (TAKEN_SECRET veranderd of weg): opnieuw koppelen.
+  return { ...settings, google: token === null ? { ...settings.google, refreshToken: "", needsReconnect: true } : { ...settings.google, refreshToken: token } };
+}
+
+function sealSettings(settings: Settings): Settings {
+  if (!settings.google?.refreshToken) return settings;
+  return { ...settings, google: { ...settings.google, refreshToken: seal(settings.google.refreshToken) } };
+}
+
 export async function getSettings(): Promise<Settings> {
   const stored =
     storageKind === "file"
       ? (await readFile()).settings
       : parse<Settings>((await redis(["GET", SETTINGS_KEY])) as string | null);
-  return { ...DEFAULT_SETTINGS, ...(stored || {}) };
+  return openSettings(stored);
 }
 
 export async function saveSettings(settings: Settings) {
+  const sealed = sealSettings(settings);
   if (storageKind === "file") {
     await editFile((data) => {
-      data.settings = settings;
+      data.settings = sealed;
     });
     return;
   }
-  await redis(["SET", SETTINGS_KEY, JSON.stringify(settings)]);
+  await redis(["SET", SETTINGS_KEY, JSON.stringify(sealed)]);
 }
 
 /** Instellingen bijwerken op basis van de laatste stand (voorkomt dat twee wijzigingen elkaar overschrijven). */
 export async function updateSettings(change: (s: Settings) => Settings): Promise<Settings> {
   if (storageKind === "file") {
     return editFile((data) => {
-      const next = change({ ...DEFAULT_SETTINGS, ...(data.settings || {}) });
-      data.settings = next;
+      const next = change(openSettings(data.settings));
+      data.settings = sealSettings(next);
       return next;
     });
   }
   const next = change(await getSettings());
   await saveSettings(next);
   return next;
+}
+
+export async function getSession(id: string): Promise<Session | null> {
+  if (storageKind === "file") return (await readFile()).sessions?.[id] || null;
+  return parse<Session>((await redis(["HGET", SESSIONS_KEY, id])) as string | null);
+}
+
+export async function getSessions(): Promise<Session[]> {
+  if (storageKind === "file") return Object.values((await readFile()).sessions || {});
+  return hashValues<Session>(SESSIONS_KEY);
+}
+
+export async function saveSession(session: Session) {
+  if (storageKind === "file") {
+    await editFile((data) => {
+      (data.sessions ||= {})[session.id] = session;
+    });
+    return;
+  }
+  await redis(["HSET", SESSIONS_KEY, session.id, JSON.stringify(session)]);
+}
+
+export async function deleteSessions(ids: string[]) {
+  if (!ids.length) return;
+  if (storageKind === "file") {
+    await editFile((data) => {
+      for (const id of ids) delete data.sessions?.[id];
+    });
+    return;
+  }
+  await redis(["HDEL", SESSIONS_KEY, ...ids]);
+}
+
+// Mislukte inlogpogingen per IP-adres, om raden af te remmen. Zonder Redis alleen in het geheugen.
+const memoryFails = new Map<string, { count: number; until: number }>();
+export const LOGIN_WINDOW = 15 * 60;
+
+export async function loginFailures(who: string): Promise<number> {
+  if (storageKind === "file") {
+    const entry = memoryFails.get(who);
+    return entry && entry.until > Date.now() ? entry.count : 0;
+  }
+  return Number(await redis(["GET", loginFailKey(who)])) || 0;
+}
+
+export async function addLoginFailure(who: string) {
+  if (storageKind === "file") {
+    const entry = memoryFails.get(who);
+    const fresh = !entry || entry.until <= Date.now();
+    memoryFails.set(who, { count: fresh ? 1 : entry!.count + 1, until: fresh ? Date.now() + LOGIN_WINDOW * 1000 : entry!.until });
+    return;
+  }
+  const count = Number(await redis(["INCR", loginFailKey(who)]));
+  if (count === 1) await redis(["EXPIRE", loginFailKey(who), String(LOGIN_WINDOW)]);
+}
+
+export async function clearLoginFailures(who: string) {
+  if (storageKind === "file") memoryFails.delete(who);
+  else await redis(["DEL", loginFailKey(who)]);
 }

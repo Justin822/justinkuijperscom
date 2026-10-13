@@ -4,10 +4,13 @@ import { addDays, diffDays } from "@/lib/taken/dates";
 import { syncFromPlanner } from "@/lib/taken/planner-sync";
 import { dayFrom, fail, noStore } from "@/lib/taken/server";
 import type { Task } from "@/lib/taken/types";
+import { requireAccess } from "@/lib/taken/session";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(request: Request) {
+  const denied = await requireAccess(request);
+  if (denied) return denied;
   try {
     const params = new URL(request.url).searchParams;
     const from = dayFrom(params.get("from"));

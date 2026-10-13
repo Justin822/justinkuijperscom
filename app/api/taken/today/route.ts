@@ -2,10 +2,13 @@ import { NextResponse } from "next/server";
 import { makePlan, promotePick } from "@/lib/taken/score";
 import { getTasks, saveDay } from "@/lib/taken/store";
 import { dayContext, dayFrom, fail, noStore, recentPlans, syncPlan, todayPlan } from "@/lib/taken/server";
+import { requireAccess } from "@/lib/taken/session";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(request: Request) {
+  const denied = await requireAccess(request);
+  if (denied) return denied;
   try {
     const date = dayFrom(new URL(request.url).searchParams.get("date"));
     return NextResponse.json({ plan: await todayPlan(date) }, { headers: noStore });
@@ -15,6 +18,8 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+  const denied = await requireAccess(request);
+  if (denied) return denied;
   try {
     const body = await request.json().catch(() => ({}));
     const date = dayFrom(body?.date);

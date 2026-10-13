@@ -1,11 +1,14 @@
 import { NextResponse } from "next/server";
 import { eventFail, times, title } from "@/lib/taken/events-api";
 import { createEvent } from "@/lib/taken/google";
+import { requireAccess } from "@/lib/taken/session";
 
 export const dynamic = "force-dynamic";
 
 /** Nieuwe afspraak in Google Agenda (standaard in je hoofdagenda). */
 export async function POST(request: Request) {
+  const denied = await requireAccess(request);
+  if (denied) return denied;
   try {
     const body = await request.json().catch(() => ({}));
     const name = title(body?.title);

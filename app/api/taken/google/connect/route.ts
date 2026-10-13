@@ -1,6 +1,7 @@
 import { randomBytes } from "crypto";
 import { NextResponse } from "next/server";
 import { authUrl, googleConfigured, redirectUri } from "@/lib/taken/google";
+import { requireAccess } from "@/lib/taken/session";
 
 export const dynamic = "force-dynamic";
 
@@ -8,6 +9,8 @@ const STATE_COOKIE = "taken_google_state";
 
 // Start van "Koppel Google Agenda": door naar Google, met een state-cookie tegen vervalsing.
 export async function GET(request: Request) {
+  const denied = await requireAccess(request);
+  if (denied) return denied;
   const redirect = redirectUri(request);
   if (!googleConfigured()) {
     return NextResponse.redirect(new URL("/app/instellingen?google=niet-ingesteld", redirect));

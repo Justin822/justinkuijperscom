@@ -3,12 +3,15 @@ import { syncBlock } from "@/lib/taken/google";
 import { getTasks, saveTasks } from "@/lib/taken/store";
 import { fail, noStore } from "@/lib/taken/server";
 import { newTask } from "@/lib/taken/validate";
+import { requireAccess } from "@/lib/taken/session";
 
 export const dynamic = "force-dynamic";
 
 const RECENT_DONE = 30 * 24 * 60 * 60 * 1000;
 
-export async function GET() {
+export async function GET(request: Request) {
+  const denied = await requireAccess(request);
+  if (denied) return denied;
   try {
     const now = Date.now();
     // Afgeronde taken alleen van de laatste 30 dagen meesturen.
@@ -20,6 +23,8 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
+  const denied = await requireAccess(request);
+  if (denied) return denied;
   try {
     const body = await request.json().catch(() => ({}));
     const input: unknown[] = Array.isArray(body?.tasks) ? body.tasks.slice(0, 50) : [];
