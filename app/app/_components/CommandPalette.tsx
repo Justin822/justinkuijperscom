@@ -10,6 +10,7 @@ import { NoteIcon, PlayIcon, PlusIcon, SearchIcon } from "./icons";
 import { EXTRA, NAV } from "./nav";
 import { useTakenActions, useTakenData, useTakenUi } from "./TakenContext";
 import { searchable } from "@/lib/taken/text";
+import { useFocusTrap } from "./useFocusTrap";
 
 // ⌘K: zoeken in taken en notities, iets toevoegen of naar een scherm gaan.
 
@@ -32,6 +33,8 @@ export default function CommandPalette() {
   const [index, setIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useFocusTrap(dialogRef);
   const adding = palette === "add";
 
   useEffect(() => inputRef.current?.focus(), []);
@@ -157,7 +160,7 @@ export default function CommandPalette() {
   let lastGroup = "";
   return (
     <div className="tk-overlay is-top" onClick={close}>
-      <div className="tk-palette" role="dialog" aria-label="Zoeken" onClick={(e) => e.stopPropagation()}>
+      <div ref={dialogRef} className="tk-palette" role="dialog" aria-modal="true" aria-label="Zoeken" onClick={(e) => e.stopPropagation()}>
         <div className="tk-palette-input">
           {adding ? <PlusIcon /> : <SearchIcon />}
           <input

@@ -5,6 +5,7 @@ import { ESTIMATES, estimateLabel, IMPACT_LABEL, STATUS_LABEL } from "@/lib/take
 import { addDays, weekday, WEEKDAYS } from "@/lib/taken/dates";
 import type { Impact, Repeat, Status, Task } from "@/lib/taken/types";
 import AreaPills from "./AreaPills";
+import { useFocusTrap } from "./useFocusTrap";
 import { PlayIcon, TrashIcon, XIcon } from "./icons";
 import { useTakenActions, useTakenData, useTakenUi } from "./TakenContext";
 import { focusLabel } from "./TaskRow";
@@ -38,6 +39,8 @@ export default function TaskSheet({ id }: { id: string }) {
   // zodat wijzigingen die intussen binnenkomen (bijv. uit Google Agenda) blijven staan.
   const [initial] = useState<Task | null>(task || null);
   const saveRef = useRef<() => void>(() => {});
+  const sheetRef = useRef<HTMLDivElement>(null);
+  useFocusTrap(sheetRef);
 
   useEffect(() => {
     if (!task) openTask(null);
@@ -125,6 +128,7 @@ export default function TaskSheet({ id }: { id: string }) {
   return (
     <div className="tk-overlay" onClick={save}>
       <div
+        ref={sheetRef}
         className="tk-sheet"
         role="dialog"
         aria-modal="true"

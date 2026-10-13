@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { DragProvider } from "./calendar/DragLayer";
 import CommandPalette from "./CommandPalette";
 import FocusBar from "./FocusBar";
@@ -12,6 +12,7 @@ import { useTakenActions, useTakenData, useTakenUi } from "./TakenContext";
 import TaskSheet from "./TaskSheet";
 import { SW_URL } from "./device";
 import { applyTheme, readTheme } from "./theme";
+import ShortcutHelp from "./ShortcutHelp";
 
 export default function Shell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname() || "";
@@ -19,6 +20,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
   const { openTask, openPalette, undoLast } = useTakenActions();
   const { toast, editing, palette, sync } = useTakenUi();
   const inboxCount = tasks.filter((t) => t.status === "inbox").length;
+  const [help, setHelp] = useState(false);
 
   // Sneltoetsen: ⌘K of / zoekt, N voegt toe, Escape sluit.
   useEffect(() => {
@@ -37,7 +39,10 @@ export default function Shell({ children }: { children: React.ReactNode }) {
         return;
       }
       if (typing || e.metaKey || e.ctrlKey || e.altKey) return;
-      if (e.key === "/") {
+      if (e.key === "?") {
+        e.preventDefault();
+        setHelp((h) => !h);
+      } else if (e.key === "/") {
         e.preventDefault();
         openPalette("search");
       } else if (e.key === "n" || e.key === "N") {
@@ -118,6 +123,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
       <FocusBar />
       {editing && <TaskSheet key={editing} id={editing} />}
       {palette && <CommandPalette />}
+      {help && <ShortcutHelp onClose={() => setHelp(false)} />}
       {toast && (
         <div className="tk-toast" role="status">
           <span>{toast.text}</span>

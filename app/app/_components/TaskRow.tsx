@@ -200,7 +200,19 @@ export default function TaskRow({
   return (
     <div ref={swipe.ref} onPointerDown={swipe.onPointerDown} className={`tk-row ${task.status === "af" ? "is-done" : ""}`}>
       <CheckButton task={task} />
-      <div className="tk-row-body" onClick={onOpen || (() => openTask(task.id))}>
+      <div
+        className="tk-row-body"
+        role="button"
+        tabIndex={0}
+        aria-label={`${task.title}: openen`}
+        onClick={onOpen || (() => openTask(task.id))}
+        onKeyDown={(e) => {
+          if ((e.key === "Enter" || e.key === " ") && e.target === e.currentTarget) {
+            e.preventDefault();
+            (onOpen || (() => openTask(task.id)))();
+          }
+        }}
+      >
         <div className="tk-row-title">{task.title}</div>
         <TaskMeta task={task} hideArea={hideArea} />
         {children && (

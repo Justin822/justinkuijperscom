@@ -2,6 +2,7 @@
 
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { isNarrow } from "./device";
+import { useFocusTrap } from "./useFocusTrap";
 
 // Klein venster naast iets wat je aanklikt; op een telefoon als sheet van onderen.
 // Sluit met Esc of een tik ernaast.
@@ -28,6 +29,7 @@ export default function Popover({
   label?: string;
 }) {
   const ref = useRef<HTMLDivElement>(null);
+  useFocusTrap(ref);
   const [pos, setPos] = useState<{ left: number; top: number } | null>(null);
   const [phone] = useState(isNarrow);
 

@@ -18,7 +18,7 @@ test("terug sluit het taakvenster en bewaart, zonder de pagina te verlaten", asy
   await app.request.post("/api/taken/tasks", { data: { tasks: [{ title: "Terugtaak", status: "gepland" }] } });
   await app.goto("/app/taken?lijst=open");
   await app.getByText("Terugtaak").click();
-  await app.getByLabel("Titel").fill("Terugtaak aangepast");
+  await app.getByLabel("Titel", { exact: true }).fill("Terugtaak aangepast");
   await app.goBack();
   await expect(app.getByRole("dialog")).toHaveCount(0);
   await expect(app).toHaveURL(/\/app\/taken\?lijst=open$/);

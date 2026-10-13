@@ -80,7 +80,7 @@ test("Esc in het taakvenster bewaart je wijziging", async ({ app }) => {
   await app.request.post("/api/taken/tasks", { data: { tasks: [{ title: "Oude titel", status: "gepland" }] } });
   await app.goto("/app/taken?lijst=open");
   await app.getByText("Oude titel").click();
-  await app.getByLabel("Titel").fill("Nieuwe titel");
+  await app.getByLabel("Titel", { exact: true }).fill("Nieuwe titel");
   await app.keyboard.press("Escape");
   await expect(app.getByRole("dialog")).toHaveCount(0);
   await expect

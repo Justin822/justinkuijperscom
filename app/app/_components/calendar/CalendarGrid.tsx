@@ -388,7 +388,21 @@ export default function CalendarGrid({
     window.addEventListener("keydown", key, true);
   };
 
-  // ---------- Toetsenbord: geselecteerd blok verschuiven of oprekken ----------
+  // ---------- Toetsenbord ----------
+  // Elk blok is met Tab te bereiken: focus selecteert het (dan werken de pijltjes hieronder), Enter opent het.
+  const blockKeys = (b: Block, label: string) => ({
+    tabIndex: 0,
+    role: "button" as const,
+    "aria-label": label,
+    onFocus: () => setSelected(b.id),
+    onKeyDown: (ev: React.KeyboardEvent<HTMLDivElement>) => {
+      if (ev.key !== "Enter" || ev.target !== ev.currentTarget) return;
+      ev.preventDefault();
+      setPopover({ block: b, anchor: anchorOf(ev.currentTarget) });
+    },
+  });
+
+  // Geselecteerd blok verschuiven of oprekken met de pijltjes.
   useEffect(() => {
     if (!selected) return;
     const onKey = (e: KeyboardEvent) => {
@@ -558,7 +572,7 @@ export default function CalendarGrid({
               </span>
             ))}
           </div>
-          <div className="cal-cols" ref={colsRef}>
+          <div className="cal-cols" ref={colsRef} role="group" aria-label="Agenda: Tab naar een blok, pijltjes verschuiven, Enter opent">
             {days.map((day) => {
               const { dayBlocks, placed } = perDay.get(day) as NonNullable<ReturnType<typeof perDay.get>>;
               const preview =
@@ -610,6 +624,7 @@ export default function CalendarGrid({
                           onPointerDown={(ev) => startPress(ev, "move", b)}
                           title={`${fmt(b.start)}–${fmt(b.end)} ${e.title}`}
                           data-event={e.id}
+                          {...blockKeys(b, `${e.title}, ${fmt(b.start)} tot ${fmt(b.end)}`)}
                         >
                           <div className="cal-text">
                             <span className="cal-title">{e.title}</span>
@@ -639,6 +654,7 @@ export default function CalendarGrid({
                         style={style}
                         onPointerDown={(ev) => startPress(ev, "move", b)}
                         data-task={t.id}
+                        {...blockKeys(b, `${t.title}${done ? " (af)" : ""}, ${fmt(b.start)} tot ${fmt(b.end)}`)}
                       >
                         <button
                           type="button"
