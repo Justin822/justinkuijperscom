@@ -29,12 +29,14 @@ type Ctx = {
   error: string | null;
   today: string;
   addTasks: (inputs: Partial<Task>[]) => Promise<Task[]>;
-  updateTask: (id: string, patch: Partial<Task>) => Promise<void>;
+  /** Met `debounce` (ms) worden snelle opeenvolgende wijzigingen (bijv. pijltjestoetsen) samen als één verzoek gestuurd. */
+  updateTask: (id: string, patch: Partial<Task>, options?: { debounce?: number }) => Promise<void>;
   removeTask: (id: string) => Promise<void>;
   mergeTasks: (tasks: Task[]) => void;
   reload: () => Promise<void>;
   createNote: (input: Partial<Note>) => Promise<Note>;
-  updateNote: (id: string, patch: Partial<Note>) => Promise<void>;
+  /** Met `base` (bodyHash van de tekst waarop je verder typte) weigert de server als de tekst elders is gewijzigd (ApiError 409). */
+  updateNote: (id: string, patch: Partial<Note>, base?: string) => Promise<Note>;
   removeNote: (id: string) => Promise<void>;
   editing: string | null;
   openTask: (id: string | null) => void;
@@ -64,6 +66,13 @@ type Ctx = {
 
 const TakenContext = createContext<Ctx | null>(null);
 
+/** Fout van de API, met de statuscode en het antwoord (bijv. de nieuwe versie bij 409). */
+export class ApiError extends Error {
+  constructor(message: string, public status: number, public data: any) {
+    super(message);
+  }
+}
+
 export async function api<T = any>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(path, {
     ...init,
@@ -75,7 +84,7 @@ export async function api<T = any>(path: string, init?: RequestInit): Promise<T>
     throw new Error("Log eerst in.");
   }
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.error || `Er ging iets mis (${res.status}).`);
+  if (!res.ok) throw new ApiError(data.error || `Er ging iets mis (${res.status}).`, res.status, data);
   return data;
 }
 
@@ -209,28 +218,62 @@ export function TakenProvider({ children }: { children: React.ReactNode }) {
     [mergeTasks, notify]
   );
 
-  const updateTask = useCallback(
-    async (id: string, patch: Partial<Task>) => {
-      const before = tasksRef.current.find((t) => t.id === id);
-      if (!before) return;
-      const optimistic: Task = { ...before, ...patch, updatedAt: Date.now() };
-      if (patch.status === "af" && before.status !== "af") optimistic.doneAt = Date.now();
-      mergeTasks([optimistic]);
+  // Per taak: het volgnummer van de laatste wijziging (een later antwoord op een oudere wijziging
+  // mag het scherm niet terugzetten) en wijzigingen die nog even wachten (debounce).
+  const taskSeq = useRef(new Map<string, number>());
+  const waiting = useRef(new Map<string, { patch: Partial<Task>; before: Task; timer: ReturnType<typeof setTimeout>; done: (() => void)[] }>());
+
+  const sendTaskPatch = useCallback(
+    async (id: string, patch: Partial<Task>, before: Task) => {
+      const seq = (taskSeq.current.get(id) || 0) + 1;
+      taskSeq.current.set(id, seq);
+      const latest = () => taskSeq.current.get(id) === seq;
       try {
         const data = await api<{ task: Task; created?: Task[]; removed?: string[]; sync?: string }>(`/api/taken/tasks/${id}`, {
           method: "PATCH",
           body: JSON.stringify({ ...patch, today: localToday() }),
         });
-        mergeTasks([data.task, ...(data.created || [])]);
+        mergeTasks([...(latest() ? [data.task] : []), ...(data.created || [])]);
         // Weer opengezette herhaling: de volgende keer die het afvinken had gemaakt is weg.
         if (data.removed?.length) setTasks((list) => list.filter((t) => !data.removed!.includes(t.id)));
         if (data.sync === "fout") notify("Opgeslagen, maar niet in Google Agenda gezet");
       } catch (err: any) {
-        mergeTasks([before]);
+        if (latest()) mergeTasks([before]);
         notify(err.message);
       }
     },
     [mergeTasks, notify]
+  );
+
+  const updateTask = useCallback(
+    async (id: string, patch: Partial<Task>, options: { debounce?: number } = {}) => {
+      const current = tasksRef.current.find((t) => t.id === id);
+      if (!current) return;
+      const optimistic: Task = { ...current, ...patch, updatedAt: Date.now() };
+      if (patch.status === "af" && current.status !== "af") optimistic.doneAt = Date.now();
+      mergeTasks([optimistic]);
+
+      const pending = waiting.current.get(id);
+      if (pending) clearTimeout(pending.timer);
+      const combined = { ...(pending?.patch || {}), ...patch };
+      const before = pending?.before || current;
+      if (!options.debounce) {
+        waiting.current.delete(id);
+        await sendTaskPatch(id, combined, before);
+        pending?.done.forEach((resolve) => resolve());
+        return;
+      }
+      await new Promise<void>((resolve) => {
+        const done = [...(pending?.done || []), resolve];
+        const timer = setTimeout(async () => {
+          waiting.current.delete(id);
+          await sendTaskPatch(id, combined, before);
+          done.forEach((r) => r());
+        }, options.debounce);
+        waiting.current.set(id, { patch: combined, before, timer, done });
+      });
+    },
+    [mergeTasks, sendTaskPatch]
   );
 
   const changeTask = useCallback(
@@ -265,17 +308,21 @@ export function TakenProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const updateNote = useCallback(
-    async (id: string, patch: Partial<Note>) => {
-      setNotes((list) => list.map((n) => (n.id === id ? { ...n, ...patch, updatedAt: Date.now() } : n)));
+    async (id: string, patch: Partial<Note>, base?: string) => {
+      setNotes((list) => list.map((n) => (n.id === id ? { ...n, ...patch } : n)));
       try {
         const data = await api<{ note: Note }>(`/api/taken/notes/${id}`, {
           method: "PATCH",
-          body: JSON.stringify(patch),
+          body: JSON.stringify(base === undefined ? patch : { ...patch, base }),
         });
         // Alleen metadata overnemen; de tekst in de editor kan intussen verder zijn.
         setNotes((list) => list.map((n) => (n.id === id ? { ...n, updatedAt: data.note.updatedAt } : n)));
+        return data.note;
       } catch (err: any) {
-        notify(err.message);
+        if (err instanceof ApiError && err.status === 409 && err.data?.note) {
+          const fresh = err.data.note as Note;
+          setNotes((list) => list.map((n) => (n.id === id ? fresh : n)));
+        } else notify(err.message);
         throw err;
       }
     },

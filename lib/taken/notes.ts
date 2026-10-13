@@ -36,3 +36,13 @@ export const markConverted = (body: string) =>
     .split("\n")
     .map((l) => l.replace(TASK_LINE, (_m, lead, rest) => `${lead}[→] ${rest}`))
     .join("\n");
+
+/** Korte vingerafdruk van een tekst (FNV-1a), om te zien of een notitie elders is gewijzigd. */
+export function bodyHash(text: string): string {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < text.length; i++) {
+    h ^= text.charCodeAt(i);
+    h = Math.imul(h, 0x01000193) >>> 0;
+  }
+  return `${text.length.toString(36)}-${h.toString(36)}`;
+}

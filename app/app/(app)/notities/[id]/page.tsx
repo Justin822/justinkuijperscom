@@ -3,12 +3,12 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { markConverted, noteRest, taskLines } from "@/lib/taken/notes";
+import { bodyHash, markConverted, noteRest, taskLines } from "@/lib/taken/notes";
 import { parseTask } from "@/lib/taken/parse";
-import type { Task } from "@/lib/taken/types";
+import type { Note, Task } from "@/lib/taken/types";
 import AreaPills from "../../../_components/AreaPills";
 import { ChevronLeftIcon, PinIcon, TrashIcon } from "../../../_components/icons";
-import { useTaken } from "../../../_components/TakenContext";
+import { ApiError, useTaken } from "../../../_components/TakenContext";
 
 // Notitie-editor: titel + tekst, slaat vanzelf op. "[ ] iets" wordt met één knop een taak.
 
@@ -23,6 +23,7 @@ export default function NotePage({ params }: { params: { id: string } }) {
   const [status, setStatus] = useState<"" | "bezig" | "opgeslagen" | "fout">("");
   const ready = useRef(false);
   const lastSaved = useRef<string>("");
+
   const bodyRef = useRef<HTMLTextAreaElement>(null);
   const titleRef = useRef<HTMLInputElement>(null);
   const pendingCursor = useRef<number | null>(null);
@@ -39,19 +40,39 @@ export default function NotePage({ params }: { params: { id: string } }) {
 
   const body = rest ? `${title}\n${rest}` : title;
 
-  const save = useCallback(
+  // Opslaan één voor één: een tweede opslag wacht tot de eerste klaar is, zodat hij op de juiste versie voortbouwt.
+  const queue = useRef<Promise<void>>(Promise.resolve());
+  const saveNow = useCallback(
     async (value: string) => {
       if (value === lastSaved.current) return;
       setStatus("bezig");
       try {
-        await updateNote(params.id, { body: value });
+        // De server weigert als de tekst waarop je verder typte (lastSaved) intussen elders is veranderd.
+        await updateNote(params.id, { body: value }, bodyHash(lastSaved.current));
         lastSaved.current = value;
         setStatus("opgeslagen");
-      } catch {
-        setStatus("fout");
+      } catch (err) {
+        if (err instanceof ApiError && err.status === 409 && err.data?.note) {
+          // Elders gewijzigd: niets overschrijven. Jouw versie wordt een kopie, de editor toont de nieuwe versie.
+          const fresh = err.data.note as Note;
+          const [first, ...more] = value.split("\n");
+          await createNote({ body: [`${first || "Notitie"} (jouw versie)`, ...more].join("\n"), areaId: fresh.areaId }).catch(() => {});
+          lastSaved.current = fresh.body;
+          setTitle(fresh.body.split("\n")[0]);
+          setRest(noteRest(fresh.body));
+          setStatus("opgeslagen");
+          notify("Deze notitie was op een ander apparaat gewijzigd. Jouw versie staat in een kopie.");
+        } else setStatus("fout");
       }
     },
-    [params.id, updateNote]
+    [params.id, updateNote, createNote, notify]
+  );
+  const save = useCallback(
+    (value: string) => {
+      queue.current = queue.current.then(() => saveNow(value));
+      return queue.current;
+    },
+    [saveNow]
   );
 
   // Automatisch opslaan, 600 ms na het laatste typen.

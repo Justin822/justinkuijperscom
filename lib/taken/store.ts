@@ -1,7 +1,7 @@
 import { promises as fs } from "fs";
 import os from "os";
 import path from "path";
-import { hasRedis, redis } from "@/lib/redis";
+import { evalScript, hasRedis, redis } from "@/lib/redis";
 import { WORKDAY } from "./agenda";
 import { seal, unseal } from "./secrets";
 import type { DayPlan, Note, Settings, Task } from "./types";
@@ -12,6 +12,7 @@ import { normalizeTask } from "./validate";
 
 const TASKS_KEY = "taken:tasks";
 const NOTES_KEY = "taken:notes";
+const ARCHIVE_KEY = "taken:archive";
 const SETTINGS_KEY = "taken:settings";
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -39,6 +40,7 @@ type FileData = {
   notes: Record<string, Note>;
   focus?: Record<string, FocusLog>;
   sessions?: Record<string, Session>;
+  archive?: Record<string, Task>;
   settings?: Settings;
 };
 
@@ -84,6 +86,102 @@ const parse = <T>(raw: string | null): T | null => {
     return null;
   }
 };
+
+// Wijzigen op basis van de laatste stand (compare-and-set): Redis schrijft alleen als het record nog precies
+// is wat we lazen; anders lezen we opnieuw en passen de wijziging toe op de verse versie. Zo overschrijven
+// gelijktijdige verzoeken (twee apparaten, de Google-sync, de dagafsluiting) elkaars werk niet.
+const CAS_HASH = `local cur = redis.call('HGET', KEYS[1], ARGV[1])
+if (not cur and ARGV[2] == '') or cur == ARGV[2] then
+  redis.call('HSET', KEYS[1], ARGV[1], ARGV[3])
+  return 1
+end
+return 0`;
+const CAS_STRING = `local cur = redis.call('GET', KEYS[1])
+if (not cur and ARGV[1] == '') or cur == ARGV[1] then
+  redis.call('SET', KEYS[1], ARGV[2])
+  return 1
+end
+return 0`;
+
+/** Resultaat van een wijziging: de opgeslagen stand en of er iets is geschreven. */
+export type Mutation<T> = { value: T | null; changed: boolean };
+/** Bepaalt de nieuwe stand uit de huidige; null = niets veranderen. Kan bij een botsing vaker worden aangeroepen. */
+export type Change<T> = (current: T | null) => T | null;
+
+export class ConflictError extends Error {}
+
+async function casLoop<T>(
+  read: () => Promise<string | null>,
+  write: (expected: string | null, next: T) => Promise<boolean>,
+  decode: (raw: string | null) => T | null,
+  change: Change<T>
+): Promise<Mutation<T>> {
+  for (let attempt = 0; attempt < 8; attempt++) {
+    const raw = await read();
+    const current = decode(raw);
+    const next = change(current);
+    if (next === null) return { value: current, changed: false };
+    if (await write(raw, next)) return { value: next, changed: true };
+    await new Promise((resolve) => setTimeout(resolve, 15 + Math.random() * 40 * (attempt + 1)));
+  }
+  throw new ConflictError("Opslaan lukte niet door gelijktijdige wijzigingen; probeer het opnieuw.");
+}
+
+function casHashField<T>(key: string, field: string, decode: (raw: string | null) => T | null, change: Change<T>) {
+  return casLoop<T>(
+    async () => ((await redis(["HGET", key, field])) as string | null) ?? null,
+    async (expected, next) => Number(await evalScript(CAS_HASH, [key], [field, expected ?? "", JSON.stringify(next)])) === 1,
+    decode,
+    change
+  );
+}
+
+/** Eén taak wijzigen op basis van de laatste stand. */
+export async function mutateTask(id: string, change: Change<Task>): Promise<Mutation<Task>> {
+  if (storageKind === "file") {
+    return editFile((data) => {
+      const current = data.tasks[id] ? normalizeTask(data.tasks[id]) : null;
+      const next = change(current);
+      if (next) data.tasks[id] = next;
+      return { value: next ?? current, changed: Boolean(next) };
+    });
+  }
+  return casHashField<Task>(TASKS_KEY, id, (raw) => {
+    const t = parse<Task>(raw);
+    return t ? normalizeTask(t) : null;
+  }, change);
+}
+
+/** Eén notitie wijzigen op basis van de laatste stand. */
+export async function mutateNote(id: string, change: Change<Note>): Promise<Mutation<Note>> {
+  if (storageKind === "file") {
+    return editFile((data) => {
+      const current = data.notes[id] || null;
+      const next = change(current);
+      if (next) data.notes[id] = next;
+      return { value: next ?? current, changed: Boolean(next) };
+    });
+  }
+  return casHashField<Note>(NOTES_KEY, id, (raw) => parse<Note>(raw), change);
+}
+
+/** Een dagplan wijzigen op basis van de laatste stand. */
+export async function mutateDay(date: string, change: Change<DayPlan>): Promise<Mutation<DayPlan>> {
+  if (storageKind === "file") {
+    return editFile((data) => {
+      const current = data.days[date] || null;
+      const next = change(current);
+      if (next) data.days[date] = next;
+      return { value: next ?? current, changed: Boolean(next) };
+    });
+  }
+  return casLoop<DayPlan>(
+    async () => ((await redis(["GET", dayKey(date)])) as string | null) ?? null,
+    async (expected, next) => Number(await evalScript(CAS_STRING, [dayKey(date)], [expected ?? "", JSON.stringify(next)])) === 1,
+    (raw) => parse<DayPlan>(raw),
+    change
+  );
+}
 
 export async function getTasks(): Promise<Task[]> {
   if (storageKind === "file") return Object.values((await readFile()).tasks).map(normalizeTask);
@@ -245,7 +343,7 @@ export async function saveSettings(settings: Settings) {
   await redis(["SET", SETTINGS_KEY, JSON.stringify(sealed)]);
 }
 
-/** Instellingen bijwerken op basis van de laatste stand (voorkomt dat twee wijzigingen elkaar overschrijven). */
+/** Instellingen bijwerken op basis van de laatste stand (compare-and-set; twee wijzigingen overschrijven elkaar niet). */
 export async function updateSettings(change: (s: Settings) => Settings): Promise<Settings> {
   if (storageKind === "file") {
     return editFile((data) => {
@@ -254,9 +352,14 @@ export async function updateSettings(change: (s: Settings) => Settings): Promise
       return next;
     });
   }
-  const next = change(await getSettings());
-  await saveSettings(next);
-  return next;
+  let result: Settings | null = null;
+  await casLoop<Settings>(
+    async () => ((await redis(["GET", SETTINGS_KEY])) as string | null) ?? null,
+    async (expected, next) => Number(await evalScript(CAS_STRING, [SETTINGS_KEY], [expected ?? "", JSON.stringify(sealSettings(next))])) === 1,
+    (raw) => openSettings(parse<Settings>(raw)),
+    (current) => (result = change(current || openSettings(null)))
+  );
+  return result as unknown as Settings;
 }
 
 export async function getSession(id: string): Promise<Session | null> {
@@ -316,4 +419,54 @@ export async function addLoginFailure(who: string) {
 export async function clearLoginFailures(who: string) {
   if (storageKind === "file") memoryFails.delete(who);
   else await redis(["DEL", loginFailKey(who)]);
+}
+
+// Iets hooguit eens per zoveel seconden doen (bijv. de Google-sync); true = nu mag het.
+const memoryThrottle = new Map<string, number>();
+export async function takeThrottle(name: string, seconds: number): Promise<boolean> {
+  if (storageKind === "file") {
+    const until = memoryThrottle.get(name) || 0;
+    if (until > Date.now()) return false;
+    memoryThrottle.set(name, Date.now() + seconds * 1000);
+    return true;
+  }
+  return (await redis(["SET", `taken:throttle:${name}`, "1", "NX", "EX", String(seconds)])) === "OK";
+}
+
+// Archief: taken die al lang af zijn gaan uit de actieve lijst, zodat elk verzoek minder hoeft te lezen.
+// Ze blijven bewaard in taken:archive. Alleen verplaatsen als de taak intussen niet is veranderd.
+const MOVE_TO_ARCHIVE = `local cur = redis.call('HGET', KEYS[1], ARGV[1])
+if cur == ARGV[2] then
+  redis.call('HSET', KEYS[2], ARGV[1], cur)
+  redis.call('HDEL', KEYS[1], ARGV[1])
+  return 1
+end
+return 0`;
+
+export const ARCHIVE_AFTER_DAYS = 30;
+
+/** Verplaatst taken die langer dan 30 dagen af zijn naar het archief; geeft het aantal terug. */
+export async function archiveDoneTasks(now = Date.now()): Promise<number> {
+  const cutoff = now - ARCHIVE_AFTER_DAYS * 86400000;
+  const old = (t: Task) => t.status === "af" && (t.doneAt || t.updatedAt) < cutoff;
+  if (storageKind === "file") {
+    return editFile((data) => {
+      let moved = 0;
+      for (const [id, task] of Object.entries(data.tasks)) {
+        if (!old(normalizeTask(task))) continue;
+        (data.archive ||= {})[id] = task;
+        delete data.tasks[id];
+        moved++;
+      }
+      return moved;
+    });
+  }
+  const flat = ((await redis(["HGETALL", TASKS_KEY])) as string[] | null) || [];
+  let moved = 0;
+  for (let i = 0; i < flat.length; i += 2) {
+    const task = parse<Task>(flat[i + 1]);
+    if (!task || !old(normalizeTask(task))) continue;
+    moved += Number(await evalScript(MOVE_TO_ARCHIVE, [TASKS_KEY, ARCHIVE_KEY], [flat[i], flat[i + 1]]));
+  }
+  return moved;
 }

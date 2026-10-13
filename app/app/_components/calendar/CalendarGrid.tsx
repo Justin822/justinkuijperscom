@@ -383,7 +383,8 @@ export default function CalendarGrid({
       const dur = block.end - block.start;
       const set = (d: string, s: number, len: number) => {
         const from = clamp(s, 0, DAY_MINUTES - len);
-        if (task) updateTask(task.id, { blockStart: blockStartOf(d, from), estimate: len, planDate: d });
+        // Snel achter elkaar drukken: pas na een korte pauze één verzoek (en één Google-update).
+        if (task) updateTask(task.id, { blockStart: blockStartOf(d, from), estimate: len, planDate: d }, { debounce: 400 });
         else if (event) moveEvent(block.id, event, d, from, from + len, `${dayName(d)}${fmt(from)}–${fmt(from + len)}`);
       };
       if (e.key === "ArrowUp" || e.key === "ArrowDown") {

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { syncBlock } from "@/lib/taken/google";
-import { getTasks, saveTasks } from "@/lib/taken/store";
+import { archiveDoneTasks, getTasks, saveTasks, takeThrottle } from "@/lib/taken/store";
 import { fail, noStore } from "@/lib/taken/server";
 import { newTask } from "@/lib/taken/validate";
 import { requireAccess } from "@/lib/taken/session";
@@ -14,6 +14,10 @@ export async function GET(request: Request) {
   if (denied) return denied;
   try {
     const now = Date.now();
+    // Een paar keer per dag oude afgeronde taken archiveren; mag het ophalen nooit laten mislukken.
+    if (await takeThrottle("archief", 6 * 3600).catch(() => false)) {
+      await archiveDoneTasks(now).catch((error) => console.error("taken archief", error));
+    }
     // Afgeronde taken alleen van de laatste 30 dagen meesturen.
     const tasks = (await getTasks()).filter((t) => t.status !== "af" || now - (t.doneAt || t.updatedAt) < RECENT_DONE);
     return NextResponse.json({ tasks }, { headers: noStore });

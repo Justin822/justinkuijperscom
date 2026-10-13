@@ -9,11 +9,12 @@ export async function login(page: Page) {
   await expect(page.getByLabel("Nieuwe taak")).toBeVisible();
 }
 
-/** Elke test begint met een lege lijst: alle taken via de API weg. */
+/** Elke test begint leeg: alle taken en notities via de API weg. */
 async function clearTasks(page: Page) {
-  const res = await page.request.get("/api/taken/tasks");
-  const { tasks } = await res.json();
+  const { tasks } = await (await page.request.get("/api/taken/tasks")).json();
   for (const t of tasks) await page.request.delete(`/api/taken/tasks/${t.id}`);
+  const { notes } = await (await page.request.get("/api/taken/notes")).json();
+  for (const n of notes) await page.request.delete(`/api/taken/notes/${n.id}`);
 }
 
 export const test = base.extend<{ app: Page }>({
