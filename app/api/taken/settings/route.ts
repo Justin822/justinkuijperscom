@@ -5,7 +5,8 @@ import { fail, noStore } from "@/lib/taken/server";
 import { hashToken, makeToken } from "@/lib/taken/capture";
 import { DEFAULT_MAIL } from "@/lib/taken/gmail";
 import { publicSettings } from "@/lib/taken/settings";
-import { getSettings, updateSettings } from "@/lib/taken/store";
+import { getPushSubscriptions, getSettings, updateSettings } from "@/lib/taken/store";
+import { DEFAULT_PUSH } from "@/lib/taken/push-messages";
 import { newId } from "@/lib/taken/validate";
 import { requireAccess } from "@/lib/taken/session";
 
@@ -18,7 +19,7 @@ export async function GET(request: Request) {
   const denied = await requireAccess(request);
   if (denied) return denied;
   try {
-    return NextResponse.json({ settings: publicSettings(await getSettings()) }, { headers: noStore });
+    return NextResponse.json({ settings: publicSettings(await getSettings(), (await getPushSubscriptions()).length) }, { headers: noStore });
   } catch (error) {
     return fail("settings GET", error, "Kon je instellingen niet ophalen.");
   }
@@ -30,7 +31,7 @@ export async function POST(request: Request) {
   try {
     const body = await request.json().catch(() => ({}));
     const reply = async (extra: object = {}) =>
-      NextResponse.json({ settings: publicSettings(await getSettings()), ...extra });
+      NextResponse.json({ settings: publicSettings(await getSettings(), (await getPushSubscriptions()).length), ...extra });
 
     switch (body?.action) {
       case "addIcs": {
@@ -95,6 +96,18 @@ export async function POST(request: Request) {
       case "mailDisable": {
         const enabled = body.action === "mailEnable";
         await updateSettings((s) => ({ ...s, mail: { ...DEFAULT_MAIL, ...(s.mail || {}), enabled, lastError: null } }));
+        return reply();
+      }
+      case "push": {
+        // Voorkeuren voor pushmeldingen (gelden voor al je apparaten).
+        const current = { ...DEFAULT_PUSH, ...((await getSettings()).push || {}) };
+        const next = {
+          ochtend: typeof body.ochtend === "boolean" ? body.ochtend : current.ochtend,
+          afsluiten: typeof body.afsluiten === "boolean" ? body.afsluiten : current.afsluiten,
+          focus: typeof body.focus === "boolean" ? body.focus : current.focus,
+          afsluitTijd: typeof body.afsluitTijd === "string" && TIME.test(body.afsluitTijd) ? body.afsluitTijd : current.afsluitTijd,
+        };
+        await updateSettings((s) => ({ ...s, push: next }));
         return reply();
       }
       case "googleDisconnect": {

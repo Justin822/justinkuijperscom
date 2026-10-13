@@ -369,10 +369,28 @@ export function TakenProvider({ children }: { children: React.ReactNode }) {
   );
 
   // ----- Focus-timer -----
-  const saveFocus = useCallback((f: Focus | null) => {
-    setFocus(f);
-    writeFocus(f);
+  // Met pushmeldingen (en QStash) plant de server een melding voor het einde, ook als de app dan dicht is.
+  const settingsRef = useRef(settings);
+  settingsRef.current = settings;
+  const syncFocusPush = useCallback((f: Focus | null) => {
+    const push = settingsRef.current?.push;
+    if (!push?.configured || !push.scheduled || !push.focus || !push.devices) return;
+    if (f?.runningSince) {
+      const endsAt = f.runningSince + f.minutes * 60000 - f.elapsed;
+      const title = tasksRef.current.find((t) => t.id === f.taskId)?.title || "je taak";
+      api("/api/taken/push/focus", { method: "POST", body: JSON.stringify({ endsAt, minutes: f.minutes, title }) }).catch(() => {});
+    } else {
+      api("/api/taken/push/focus", { method: "DELETE" }).catch(() => {});
+    }
   }, []);
+  const saveFocus = useCallback(
+    (f: Focus | null) => {
+      setFocus(f);
+      writeFocus(f);
+      syncFocusPush(f);
+    },
+    [syncFocusPush]
+  );
 
   const logFocus = useCallback(
     (f: Focus, done: boolean) => {

@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { WORKDAY } from "@/lib/taken/agenda";
 import { httpShortcutsExport } from "@/lib/taken/http-shortcuts";
 import { readLocal, writeLocal } from "../../_components/device";
+import { usePush } from "../../_components/usePush";
 import type { PublicSettings } from "@/lib/taken/types";
 import { TrashIcon } from "../../_components/icons";
 import PageHeader from "../../_components/PageHeader";
@@ -58,6 +59,8 @@ export default function SettingsPage() {
   const [keyName, setKeyName] = useState("");
   const [newKey, setNewKey] = useState<string | null>(null);
   const [sessions, setSessions] = useState<SessionRow[] | null>(null);
+  const push = usePush(settings?.push.publicKey || null);
+  const [afsluitTijd, setAfsluitTijd] = useState(settings?.push.afsluitTijd || "17:30");
 
   const loadSessions = () =>
     api<{ sessions: SessionRow[] }>("/api/taken/sessions")
@@ -72,6 +75,25 @@ export default function SettingsPage() {
     try {
       const data = await api<{ tasks: unknown[]; error: string | null }>("/api/taken/mail", { method: "POST", body: JSON.stringify({ force: true }) });
       notify(data.error ? `Mail-radar: ${data.error}` : data.tasks.length ? `${data.tasks.length} nieuwe taken uit je mail` : "Geen nieuwe mails met het label Planner");
+      const st = await api<{ settings: PublicSettings }>("/api/taken/settings");
+      setSettings(st.settings);
+    } catch (err: any) {
+      notify(err.message);
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const pushToggle = async (on: boolean) => {
+    setBusy("push");
+    try {
+      if (on) {
+        await push.enable();
+        notify("Meldingen staan aan op dit apparaat");
+      } else {
+        await push.disable();
+        notify("Meldingen staan uit op dit apparaat");
+      }
       const st = await api<{ settings: PublicSettings }>("/api/taken/settings");
       setSettings(st.settings);
     } catch (err: any) {
@@ -522,6 +544,67 @@ export default function SettingsPage() {
                 <li>De app kijkt als je hem opent, en elke ochtend vroeg (als CRON_SECRET is ingesteld).</li>
               </ul>
             </details>
+          </div>
+        )}
+      </Section>
+
+      <Section title="Meldingen" intro="Pushmeldingen op je telefoon, ook als de app dicht is. Bij een deadline kun je vanuit de melding meteen afvinken of naar morgen schuiven.">
+        {!settings.push.configured ? (
+          <p className="tk-muted text-sm">Nog niet ingesteld: zet VAPID_PUBLIC_KEY en VAPID_PRIVATE_KEY in Vercel (zie README).</p>
+        ) : (
+          <div className="text-sm">
+            <div className="flex flex-wrap items-center gap-2">
+              {push.state === "aan" ? (
+                <>
+                  <span className="font-medium">Aan op dit apparaat</span>
+                  <button type="button" className="tk-btn tk-btn-ghost tk-btn-sm" disabled={!!busy} onClick={() => push.test().then(() => notify("Testmelding verstuurd"), (e) => notify(e.message))}>
+                    Testmelding
+                  </button>
+                  <button type="button" className="tk-btn tk-btn-ghost tk-btn-sm" disabled={!!busy} onClick={() => pushToggle(false)}>
+                    Uitzetten
+                  </button>
+                </>
+              ) : push.state === "uit" ? (
+                <button type="button" className="tk-btn" disabled={!!busy} onClick={() => pushToggle(true)}>
+                  {busy === "push" ? "Bezig…" : "Meldingen aanzetten op dit apparaat"}
+                </button>
+              ) : push.state === "geblokkeerd" ? (
+                <span className="tk-muted">Meldingen zijn geblokkeerd. Sta ze toe in de instellingen van je browser (slotje in de adresbalk).</span>
+              ) : push.state === "niet-ondersteund" ? (
+                <span className="tk-muted">Deze browser ondersteunt geen pushmeldingen. Installeer de app via Chrome.</span>
+              ) : null}
+            </div>
+            {settings.push.devices > 0 && (
+              <p className="tk-faint mt-1 text-xs">{settings.push.devices === 1 ? "1 apparaat ontvangt meldingen" : `${settings.push.devices} apparaten ontvangen meldingen`}</p>
+            )}
+            <div className="mt-4 flex flex-col gap-2">
+              <label className="flex items-center gap-2">
+                <input type="checkbox" checked={settings.push.ochtend} onChange={(e) => act("push", { ochtend: e.target.checked }, "pushprefs")} />
+                &apos;s Ochtends: je top 3, deadlines en nabellen van vandaag
+              </label>
+              <label className="flex flex-wrap items-center gap-2">
+                <input type="checkbox" checked={settings.push.afsluiten} disabled={!settings.push.scheduled} onChange={(e) => act("push", { afsluiten: e.target.checked }, "pushprefs")} />
+                Herinnering om je dag af te sluiten om
+                <input
+                  className="tk-input"
+                  type="time"
+                  step={900}
+                  value={afsluitTijd}
+                  disabled={!settings.push.scheduled}
+                  onChange={(e) => setAfsluitTijd(e.target.value)}
+                  onBlur={() => afsluitTijd !== settings.push.afsluitTijd && act("push", { afsluitTijd }, "pushprefs")}
+                  style={{ maxWidth: 110, height: 30 }}
+                  aria-label="Tijd voor afsluiten"
+                />
+              </label>
+              <label className="flex items-center gap-2">
+                <input type="checkbox" checked={settings.push.focus} disabled={!settings.push.scheduled} onChange={(e) => act("push", { focus: e.target.checked }, "pushprefs")} />
+                Als je focus-timer klaar is
+              </label>
+              {!settings.push.scheduled && (
+                <p className="tk-faint text-xs">Meldingen op een vast tijdstip (afsluiten, focus) hebben Upstash QStash nodig: zet QSTASH_TOKEN en CRON_SECRET in Vercel (zie README). De ochtendmelding werkt ook zonder.</p>
+              )}
+            </div>
           </div>
         )}
       </Section>

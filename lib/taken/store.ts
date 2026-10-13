@@ -25,6 +25,16 @@ const focusKey = (date: string) => `taken:focus:${date}`;
 const SESSIONS_KEY = "taken:sessions";
 const loginFailKey = (who: string) => `taken:login-fail:${who}`;
 
+/** Een apparaat dat pushmeldingen ontvangt (Web Push). */
+export type PushSubscriptionRecord = {
+  id: string;
+  endpoint: string;
+  keys: { p256dh: string; auth: string };
+  device: string;
+  createdAt: number;
+};
+const PUSH_KEY = "taken:push";
+
 /** Een ingelogd apparaat. */
 export type Session = { id: string; createdAt: number; lastSeenAt: number; device: string };
 
@@ -42,6 +52,8 @@ type FileData = {
   sessions?: Record<string, Session>;
   archive?: Record<string, Task>;
   mailSeen?: string[];
+  push?: Record<string, PushSubscriptionRecord>;
+  kv?: Record<string, string>;
   settings?: Settings;
 };
 
@@ -488,4 +500,48 @@ export async function markMailSeen(id: string) {
     return;
   }
   await redis(["SADD", MAIL_SEEN_KEY, id]);
+}
+
+export async function getPushSubscriptions(): Promise<PushSubscriptionRecord[]> {
+  if (storageKind === "file") return Object.values((await readFile()).push || {});
+  return hashValues<PushSubscriptionRecord>(PUSH_KEY);
+}
+
+export async function savePushSubscription(sub: PushSubscriptionRecord) {
+  if (storageKind === "file") {
+    await editFile((data) => {
+      (data.push ||= {})[sub.id] = sub;
+    });
+    return;
+  }
+  await redis(["HSET", PUSH_KEY, sub.id, JSON.stringify(sub)]);
+}
+
+export async function deletePushSubscriptions(ids: string[]) {
+  if (!ids.length) return;
+  if (storageKind === "file") {
+    await editFile((data) => {
+      for (const id of ids) delete data.push?.[id];
+    });
+    return;
+  }
+  await redis(["HDEL", PUSH_KEY, ...ids]);
+}
+
+// Kleine losse waarden (bijv. de lopende focus-timer voor een pushmelding).
+export async function getValue(name: string): Promise<string | null> {
+  if (storageKind === "file") return (await readFile()).kv?.[name] ?? null;
+  return ((await redis(["GET", `taken:kv:${name}`])) as string | null) ?? null;
+}
+
+export async function setValue(name: string, value: string | null) {
+  if (storageKind === "file") {
+    await editFile((data) => {
+      data.kv ||= {};
+      if (value === null) delete data.kv[name];
+      else data.kv[name] = value;
+    });
+    return;
+  }
+  await redis(value === null ? ["DEL", `taken:kv:${name}`] : ["SET", `taken:kv:${name}`, value]);
 }

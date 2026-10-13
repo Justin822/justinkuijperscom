@@ -145,12 +145,24 @@ export type MailSettings = {
   lastCount: number;
 };
 
+/** Welke pushmeldingen je wilt (voor alle apparaten). */
+export type PushPrefs = {
+  /** 's Ochtends je top 3, plus deadlines en nabellen van vandaag. */
+  ochtend: boolean;
+  /** Herinnering om je dag af te sluiten, op `afsluitTijd`. */
+  afsluiten: boolean;
+  afsluitTijd: string;
+  /** Melding als je focus-timer klaar is, ook als de app dicht is. */
+  focus: boolean;
+};
+
 export type Settings = {
   icsSources: IcsSource[];
   workday: { start: string; end: string };
   google: GoogleLink | null;
   captureTokens?: CaptureToken[];
   mail?: MailSettings;
+  push?: PushPrefs;
 };
 
 /** Wat de browser van de instellingen te zien krijgt: geen tokens, geen volledige links. */
@@ -170,4 +182,5 @@ export type PublicSettings = {
   };
   captureTokens: { id: string; name: string; createdAt: number; lastUsedAt: number | null }[];
   mail: { available: boolean; enabled: boolean; lastRunAt: number | null; lastError: string | null; lastCount: number };
+  push: PushPrefs & { configured: boolean; publicKey: string | null; scheduled: boolean; devices: number };
 };

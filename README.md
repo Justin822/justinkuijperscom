@@ -115,6 +115,19 @@ Aanzetten: **Instellingen → Mail-radar → Mail-radar aanzetten**. Google vraa
 
 De app kijkt als je hem opent (hooguit eens per 2 minuten) en elke ochtend vroeg via Vercel Cron (`vercel.json`), als `CRON_SECRET` is ingesteld. Vaker op de achtergrond kan met een externe planner (bijv. Upstash QStash) die `GET /api/taken/cron` aanroept met `Authorization: Bearer <CRON_SECRET>`.
 
+### Pushmeldingen
+
+Op Android (Chrome, app geïnstalleerd) krijg je meldingen, ook als de app dicht is. Aanzetten per apparaat in **Instellingen → Meldingen**.
+
+- **'s Ochtends**: je top 3, plus per taak een melding voor deadlines en nabellen van vandaag. Bij een deadline kun je in de melding meteen **Afvinken** of **Naar morgen**.
+- **Dag afsluiten**: een herinnering op de tijd die je kiest (staat de dag al afgesloten, dan niet).
+- **Focus klaar**: als je focus-timer afloopt.
+
+Instellen:
+1. `npx web-push generate-vapid-keys` en zet de twee sleutels in Vercel als `VAPID_PUBLIC_KEY` en `VAPID_PRIVATE_KEY` (plus `VAPID_SUBJECT`, bijv. `mailto:jij@example.com`).
+2. `CRON_SECRET`: de dagelijkse ronde (`vercel.json`, 05:45 UTC) stuurt de ochtendmelding en draait de mail-radar.
+3. Optioneel `QSTASH_TOKEN` (Upstash QStash, gratis tier, zelfde account als Redis): nodig voor meldingen op een vast tijdstip (afsluiten, einde focus). De app plant die dan zelf in.
+
 ### Setup op Vercel
 
 1. `TAKEN_PASSWORD`: wachtwoord voor de app. Lokaal is het `taken`.
