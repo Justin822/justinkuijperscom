@@ -1,41 +1,29 @@
-This is a [Next.js](https://nextjs.org/) project bootstrapped with [`create-next-app`](https://github.com/vercel/next.js/tree/canary/packages/create-next-app).
+# justinkuijpers.com
 
-## Getting Started
+Persoonlijke site (Next.js App Router, Contentlayer voor de blog) met twee apps:
 
-First, run the development server:
+- **Planner** op `/app`: taken, agenda en notities (zie hieronder)
+- **Ranking the Stars** op `/rankingthestars`: teamspel
+
+## Lokaal draaien
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
+npm install
+cp .env.example .env.local   # alles mag leeg blijven voor lokaal gebruik
+npm run dev                  # http://localhost:3000
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Controles
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+| Commando | Wat |
+| --- | --- |
+| `npm run typecheck` | TypeScript |
+| `npm run lint` | ESLint |
+| `npm test` | unit-tests (Vitest, `tests/unit`) |
+| `npm run test:e2e` | end-to-end-tests van de Planner (Playwright, `tests/e2e`); bouw eerst met `npm run build` |
+| `npm run build` | productie-build; faalt bij type- of lintfouten |
 
-[API routes](https://nextjs.org/docs/api-routes/introduction) can be accessed on [http://localhost:3000/api/hello](http://localhost:3000/api/hello). This endpoint can be edited in `pages/api/hello.ts`.
-
-The `pages/api` directory is mapped to `/api/*`. Files in this directory are treated as [API routes](https://nextjs.org/docs/api-routes/introduction) instead of React pages.
-
-This project uses [`next/font`](https://nextjs.org/docs/basic-features/font-optimization) to automatically optimize and load Inter, a custom Google Font.
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js/) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/deployment) for more details.
+GitHub Actions draait dit allemaal bij elke pull request (`.github/workflows/ci.yml`).
 
 ## Ranking the Stars (teamspel)
 

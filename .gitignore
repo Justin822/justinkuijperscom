@@ -41,3 +41,7 @@ next-env.d.ts
 
 # taken-app (lokale opslag)
 .taken-data.json
+
+# tests
+/test-results/
+/playwright-report/

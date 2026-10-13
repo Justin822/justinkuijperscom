@@ -24,7 +24,12 @@ export type AreaReview = {
   postponed: number;
 };
 
-export function computeReview(dates: string[], plans: (DayPlan | null)[], tasks: Task[], dayOf = localToday) {
+export function computeReview(
+  dates: string[],
+  plans: (DayPlan | null)[],
+  tasks: Task[],
+  dayOf: (ms: number) => string = localToday
+) {
   const byId = new Map(tasks.map((t) => [t.id, t]));
   const inWeek = (ms: number | null) => Boolean(ms && dates.includes(dayOf(ms)));
 
