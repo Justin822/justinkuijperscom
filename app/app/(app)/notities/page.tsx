@@ -3,18 +3,19 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
-import { AREA_BY_ID } from "@/lib/taken/config";
+
 import { formatRelative, localToday } from "@/lib/taken/dates";
 import { dailyTitle, noteTitle, notePreview } from "@/lib/taken/notes";
 import type { AreaId, Note } from "@/lib/taken/types";
 import AreaPills from "../../_components/AreaPills";
 import { PinIcon, PlusIcon, SearchIcon } from "../../_components/icons";
 import PageHeader from "../../_components/PageHeader";
-import { useTakenActions, useTakenData } from "../../_components/TakenContext";
+import { useAreas, useTakenActions, useTakenData } from "../../_components/TakenContext";
 import { searchable } from "@/lib/taken/text";
 
 
 export default function NotesPage() {
+  const { map: areaById } = useAreas();
   const router = useRouter();
   const { notes, loaded, today } = useTakenData();
   const { createNote, notify } = useTakenActions();
@@ -46,7 +47,7 @@ export default function NotesPage() {
   };
 
   const row = (n: Note) => {
-    const a = n.areaId ? AREA_BY_ID[n.areaId] : null;
+    const a = n.areaId ? areaById[n.areaId] : null;
     const preview = notePreview(n);
     return (
       <Link key={n.id} href={`/app/notities/${n.id}`} className="tk-note-row">

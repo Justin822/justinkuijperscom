@@ -8,7 +8,7 @@ import { parseTask, splitEntries } from "@/lib/taken/parse";
 import type { Task } from "@/lib/taken/types";
 import { NoteIcon, PlayIcon, PlusIcon, SearchIcon } from "./icons";
 import { EXTRA, NAV } from "./nav";
-import { useTakenActions, useTakenData, useTakenUi } from "./TakenContext";
+import { useAreas, useTakenActions, useTakenData, useTakenUi } from "./TakenContext";
 import { searchable } from "@/lib/taken/text";
 import { useFocusTrap } from "./useFocusTrap";
 
@@ -25,6 +25,7 @@ type Item = {
 
 
 export default function CommandPalette() {
+  const { list: areas } = useAreas();
   const router = useRouter();
   const { tasks, notes, today, plan } = useTakenData();
   const { openPalette, addTasks, createNote, openTask, notify } = useTakenActions();
@@ -50,7 +51,7 @@ export default function CommandPalette() {
   const items = useMemo<Item[]>(() => {
     const q = searchable(query.trim());
     const list: Item[] = [];
-    const entries = query.trim() ? splitEntries(query).map((e) => parseTask(e, today)).filter((p) => p.title) : [];
+    const entries = query.trim() ? splitEntries(query).map((e) => parseTask(e, today, areas)).filter((p) => p.title) : [];
 
     if (entries.length && (adding || q)) {
       list.push({

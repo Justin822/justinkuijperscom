@@ -1,15 +1,16 @@
 "use client";
 
-import { AREA_BY_ID } from "@/lib/taken/config";
+
 import type { Task } from "@/lib/taken/types";
 import AreaPills from "./AreaPills";
-import { useTakenActions, useTakenData } from "./TakenContext";
+import { useAreas, useTakenActions, useTakenData } from "./TakenContext";
 
 // Een taak uit de Inbox een plek geven: gebied kiezen, of naar wachten / ooit / weg.
 export default function InboxActions({ task }: { task: Task }) {
+  const { map: areaById } = useAreas();
   const { today } = useTakenData();
   const { updateTask, removeTask, openTask, notify, addTasks } = useTakenActions();
-  const area = task.areaId ? AREA_BY_ID[task.areaId] : null;
+  const area = task.areaId ? areaById[task.areaId] : null;
 
   return (
     <div className="flex flex-col gap-2">

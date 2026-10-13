@@ -8,7 +8,7 @@ import type { DayPlan } from "@/lib/taken/types";
 import { ChevronLeftIcon, ChevronRightIcon } from "../../_components/icons";
 import PageHeader from "../../_components/PageHeader";
 import { focusLabel } from "../../_components/TaskRow";
-import { api, useTakenActions, useTakenData } from "../../_components/TakenContext";
+import { api, useAreas, useTakenActions, useTakenData } from "../../_components/TakenContext";
 
 // Weekreview: de succescriteria uit je plan, per gebied wat er gebeurd is, en je focus voor volgende week.
 
@@ -28,6 +28,7 @@ function Stat({ value, total, label }: { value: React.ReactNode; total?: number;
 }
 
 export default function ReviewPage() {
+  const { list: areaList } = useAreas();
   const router = useRouter();
   const { tasks, today } = useTakenData();
   const { createNote, notify, openTask } = useTakenActions();
@@ -47,7 +48,7 @@ export default function ReviewPage() {
     };
   }, [monday, notify]);
 
-  const review = useMemo(() => (data ? computeReview(data.dates, data.plans, tasks, undefined, data.focus) : null), [data, tasks]);
+  const review = useMemo(() => (data ? computeReview(data.dates, data.plans, tasks, undefined, data.focus, areaList) : null), [data, tasks, areaList]);
   const week = isoWeek(monday);
   const sunday = addDays(monday, 6);
   const range = `${Number(monday.slice(8))} ${MONTHS[Number(monday.slice(5, 7)) - 1].slice(0, 3)} – ${Number(sunday.slice(8))} ${MONTHS[Number(sunday.slice(5, 7)) - 1].slice(0, 3)}`;

@@ -8,13 +8,14 @@ import { parseTask } from "@/lib/taken/parse";
 import type { Note, Task } from "@/lib/taken/types";
 import AreaPills from "../../../_components/AreaPills";
 import { ChevronLeftIcon, PinIcon, TrashIcon } from "../../../_components/icons";
-import { ApiError, useTakenActions, useTakenData } from "../../../_components/TakenContext";
+import { ApiError, useAreas, useTakenActions, useTakenData } from "../../../_components/TakenContext";
 
 // Notitie-editor: titel + tekst, slaat vanzelf op. "[ ] iets" wordt met één knop een taak.
 
 const LIST_PREFIX = /^(\s*)(- \[[ x→]\] |\[[ x→]\] |[-*•] |(\d+)\. )(.*)$/;
 
 export default function NotePage({ params }: { params: { id: string } }) {
+  const { list: areaList } = useAreas();
   const router = useRouter();
   const { notes, loaded, today } = useTakenData();
   const { updateNote, removeNote, createNote, addTasks, notify } = useTakenActions();
@@ -138,7 +139,7 @@ export default function NotePage({ params }: { params: { id: string } }) {
   const convert = async () => {
     try {
       const inputs = open.map((line) => {
-        const { chips, ...fields } = parseTask(line, today);
+        const { chips, ...fields } = parseTask(line, today, areaList);
         return { ...fields, areaId: fields.areaId || note?.areaId || null, source: "notitie", note: `Uit notitie: ${title || "zonder titel"}` } as Partial<Task>;
       });
       const created = await addTasks(inputs);

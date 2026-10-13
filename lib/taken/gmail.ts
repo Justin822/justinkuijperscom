@@ -1,3 +1,4 @@
+import { areasOf, type Area } from "./config";
 import { amsterdamToday } from "./dates";
 import { canReadMail, googleApi, GoogleError } from "./google";
 import { mailToTask, type MailKind, type MailMeta } from "./mail";
@@ -69,7 +70,7 @@ async function moveToDone(link: GoogleLink, id: string, from: string, done: stri
   });
 }
 
-async function collect(link: GoogleLink, labels: NonNullable<MailSettings["labels"]>, today: string): Promise<Task[]> {
+async function collect(link: GoogleLink, labels: NonNullable<MailSettings["labels"]>, today: string, areas: Area[]): Promise<Task[]> {
   const created: Task[] = [];
   for (const kind of ["taak", "wachten"] as MailKind[]) {
     const labelId = labels[kind];
@@ -80,7 +81,7 @@ async function collect(link: GoogleLink, labels: NonNullable<MailSettings["label
     );
     for (const { id } of list.messages || []) {
       if (!(await isMailSeen(id))) {
-        const task = newTask(mailToTask(await readMeta(link, id), kind, today, link.email));
+        const task = newTask(mailToTask(await readMeta(link, id), kind, today, link.email, areas));
         if (task) {
           await saveTasks([task]);
           created.push(task);
@@ -108,12 +109,12 @@ export async function runMailRadar(): Promise<{ created: Task[]; error: string |
   try {
     let labels = mail.labels || (await ensureLabels(link));
     try {
-      created = await collect(link, labels, amsterdamToday());
+      created = await collect(link, labels, amsterdamToday(), areasOf(settings));
     } catch (error) {
       // Label in Gmail verwijderd of hernoemd: opnieuw opzoeken of aanmaken en nog één keer.
       if (!(error instanceof GoogleError) || ![400, 404].includes(error.status)) throw error;
       labels = await ensureLabels(link);
-      created = await collect(link, labels, amsterdamToday());
+      created = await collect(link, labels, amsterdamToday(), areasOf(settings));
     }
     await save({ labels, lastRunAt: Date.now(), lastError: null, lastCount: created.length });
     return { created, error: null };

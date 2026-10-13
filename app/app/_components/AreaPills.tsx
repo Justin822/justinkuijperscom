@@ -1,6 +1,6 @@
 "use client";
 
-import { AREAS } from "@/lib/taken/config";
+import { useAreas } from "./TakenContext";
 import type { AreaId } from "@/lib/taken/types";
 
 /**
@@ -25,6 +25,9 @@ export default function AreaPills({
   small?: boolean;
   className?: string;
 }) {
+  const { active, map } = useAreas();
+  // Gearchiveerde gebieden kies je niet meer, maar een taak die er nog in staat laat het wel zien.
+  const shown = value && map[value]?.archived ? [...active, map[value]] : active;
   const style = small ? { height: 24, fontSize: 12 } : undefined;
   const pick = (id: AreaId) => {
     if (onChange) onChange(toggle && value === id ? null : id);
@@ -37,7 +40,7 @@ export default function AreaPills({
           Alles
         </button>
       )}
-      {AREAS.map((a) => (
+      {shown.map((a) => (
         <button key={a.id} type="button" className="tk-pill" style={style} aria-pressed={value === a.id} onClick={() => pick(a.id)}>
           <span className="tk-dot" style={{ background: a.color }} />
           {a.short}

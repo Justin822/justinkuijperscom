@@ -1,4 +1,4 @@
-import { AREA_BY_ID, AREAS, OPEN_STATUSES } from "./config";
+import { areaMap, DEFAULT_AREAS, OPEN_STATUSES, type Area } from "./config";
 import { diffDays, formatRelative } from "./dates";
 import type { AreaId, DayPlan, Pick, Task } from "./types";
 
@@ -23,8 +23,8 @@ export function areaHistory(recent: DayPlan[]) {
   return { counts, total };
 }
 
-/** Extra context voor vandaag: hoeveel vrije werktijd je agenda nog laat. */
-export type DayContext = { freeMinutes?: number | null };
+/** Extra context voor vandaag: hoeveel vrije werktijd je agenda nog laat, en je gebieden (voor de uitleg). */
+export type DayContext = { freeMinutes?: number | null; areas?: Area[] };
 
 export function scoreTask(
   task: Task,
@@ -76,7 +76,7 @@ export function scoreTask(
   // Balans tussen gebieden over de afgelopen dagen.
   if (task.areaId && history.total >= 6) {
     const count = history.counts[task.areaId] || 0;
-    const name = AREA_BY_ID[task.areaId]?.name;
+    const name = areaMap(ctx.areas || DEFAULT_AREAS)[task.areaId]?.name;
     if (count / history.total > 0.5) add(-15, "");
     else if (count === 0) add(8, `${name} kreeg de laatste dagen geen aandacht`);
   }
@@ -87,7 +87,7 @@ export function scoreTask(
     .sort((a, b) => b.points - a.points)
     .map((f) => f.reason);
   const lowerFirst = (r: string) =>
-    AREAS.some((a) => r.startsWith(a.name)) ? r : r.charAt(0).toLowerCase() + r.slice(1);
+    (ctx.areas || DEFAULT_AREAS).some((a) => r.startsWith(a.name)) ? r : r.charAt(0).toLowerCase() + r.slice(1);
   const reason =
     reasons.length > 1
       ? `${reasons[0]}, en ${lowerFirst(reasons[1])}`

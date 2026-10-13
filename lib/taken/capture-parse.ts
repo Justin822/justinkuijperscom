@@ -1,3 +1,4 @@
+import type { Area } from "./config";
 import { parseTask, splitEntries } from "./parse";
 import type { Source, Task } from "./types";
 
@@ -19,7 +20,7 @@ const URL_RE = /https?:\/\/\S+/i;
  * - Een gedeelde link komt in de notitie van de taak; de paginatitel (of de link) wordt de titel.
  * - Meerdere regels worden meerdere taken.
  */
-export function toCapture(input: CaptureInput, today: string, source: Source): Capture {
+export function toCapture(input: CaptureInput, today: string, source: Source, areas?: Area[]): Capture {
   const text = (input.text || "").trim();
   const title = (input.title || "").trim();
   const url = (input.url || "").trim() || text.match(URL_RE)?.[0] || "";
@@ -33,7 +34,7 @@ export function toCapture(input: CaptureInput, today: string, source: Source): C
   const lines = splitEntries(withoutUrl || title || url).slice(0, 20);
   const tasks: Partial<Task>[] = [];
   for (const line of lines) {
-    const { chips, ...fields } = parseTask(line, today);
+    const { chips, ...fields } = parseTask(line, today, areas);
     if (!fields.title) continue;
     const note = [url && lines.length === 1 ? url : "", extraNote].filter(Boolean).join("\n\n") || null;
     tasks.push({ ...fields, title: fields.title.slice(0, 300), note, source });

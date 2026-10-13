@@ -1,21 +1,22 @@
 "use client";
 
 import { memo, useCallback, useRef } from "react";
-import { AREA_BY_ID, estimateLabel } from "@/lib/taken/config";
+import { estimateLabel } from "@/lib/taken/config";
 import { addDays, diffDays, formatRelative } from "@/lib/taken/dates";
 import { repeatLabel } from "@/lib/taken/repeat";
 import { isOutside, SOURCE_LABEL, sourceLink } from "@/lib/taken/source";
 import type { Task } from "@/lib/taken/types";
 import { CheckIcon } from "./icons";
-import { useTakenActions, useToday } from "./TakenContext";
+import { useAreas, useTakenActions, useToday } from "./TakenContext";
 
 export const focusLabel = (m: number) => (m >= 60 ? `${Math.floor(m / 60)}u${m % 60 ? ` ${m % 60}m` : ""}` : `${m} min`);
 
 /** Eén gedempte regel: ● Appèl / Leadgen · vr 16 okt · 30 min · ↻ elke maandag */
 // memo + alleen useToday: een regel tekent alleen opnieuw als zijn eigen taak verandert.
 export const TaskMeta = memo(function TaskMeta({ task, hideArea }: { task: Task; hideArea?: boolean }) {
+  const { map: areaById } = useAreas();
   const today = useToday();
-  const area = task.areaId ? AREA_BY_ID[task.areaId] : null;
+  const area = task.areaId ? areaById[task.areaId] : null;
   const parts: React.ReactNode[] = [];
 
   if (area && !hideArea)

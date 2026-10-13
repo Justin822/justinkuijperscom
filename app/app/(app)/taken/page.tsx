@@ -2,7 +2,7 @@
 
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useMemo, useState } from "react";
-import { AREA_BY_ID, AREAS } from "@/lib/taken/config";
+
 import { addDays } from "@/lib/taken/dates";
 import type { AreaId, Task } from "@/lib/taken/types";
 import AreaPills from "../../_components/AreaPills";
@@ -11,7 +11,7 @@ import InboxActions from "../../_components/InboxActions";
 import PageHeader from "../../_components/PageHeader";
 import QuickAdd from "../../_components/QuickAdd";
 import TaskRow from "../../_components/TaskRow";
-import { useTakenActions, useTakenData } from "../../_components/TakenContext";
+import { useAreas, useTakenActions, useTakenData } from "../../_components/TakenContext";
 import { searchable } from "@/lib/taken/text";
 import { SOURCE_GROUP_LABEL, sourceGroup, type SourceGroup } from "@/lib/taken/source";
 
@@ -38,6 +38,7 @@ const inList = (t: Task, list: List) =>
 
 
 export default function TasksPage() {
+  const { map: areaById, list: areaList } = useAreas();
   const router = useRouter();
   const pathname = usePathname();
   const params = useSearchParams();
@@ -86,13 +87,13 @@ export default function TasksPage() {
       const key = `${t.areaId || "geen"}|${t.project || ""}`;
       map.set(key, [...(map.get(key) || []), t]);
     }
-    const order = [...AREAS.map((a) => a.id as string), "geen"];
+    const order = [...areaList.map((a) => a.id as string), "geen"];
     return Array.from(map.entries()).sort(([a], [b]) => {
       const [aa, ap] = a.split("|");
       const [ba, bp] = b.split("|");
       return order.indexOf(aa) - order.indexOf(ba) || (ap ? (bp ? ap.localeCompare(bp) : -1) : bp ? 1 : 0);
     });
-  }, [visible, list]);
+  }, [visible, list, areaList]);
 
   const rowFor = (task: Task) => {
     if (list === "inbox")
@@ -205,7 +206,7 @@ export default function TasksPage() {
         ) : list === "open" ? (
           groups.map(([key, items]) => {
             const [areaId, project] = key.split("|");
-            const a = AREA_BY_ID[areaId as AreaId];
+            const a = areaById[areaId as AreaId];
             return (
               <section key={key} className="mt-5">
                 <div className="tk-h2 flex items-center gap-2">

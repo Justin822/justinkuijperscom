@@ -160,4 +160,4 @@ Koppelde je Google al vóór afspraken bewerken bestond? Dan vraagt de app één
 
 Ontkoppelen kan in Instellingen; de agenda Planner blijft dan in Google staan.
 
-Gebieden en hun trefwoorden pas je aan in `lib/taken/config.ts`. Je werkdag (voor "vrije tijd" en de top 3) stel je in bij Instellingen.
+Gebieden (naam, kleur, trefwoorden, volgorde, archiveren) pas je aan in **Instellingen → Gebieden**; de standaardlijst staat in `lib/taken/config.ts`. Je werkdag (voor "vrije tijd" en de top 3) stel je in bij Instellingen.

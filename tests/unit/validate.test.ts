@@ -4,7 +4,8 @@ import { task } from "./helpers";
 
 describe("cleanPatch", () => {
   it("laat onbekende en ongeldige velden vallen", () => {
-    const patch = cleanPatch({ title: "  Hoi  ", evil: 1, deadline: "morgen", estimate: 99999, areaId: "nope", status: "kapot" });
+    // Gebieden zijn aan te passen: alleen de vorm van het id telt, niet of het in de standaardlijst staat.
+    const patch = cleanPatch({ title: "  Hoi  ", evil: 1, deadline: "morgen", estimate: 99999, areaId: "Geen Id!", status: "kapot" });
     expect(patch).toEqual({ title: "Hoi", deadline: null, estimate: null, areaId: null });
   });
 
@@ -18,6 +19,14 @@ describe("cleanPatch", () => {
   it("schoont herhalingen op", () => {
     expect(cleanPatch({ repeat: { every: 0, unit: "week", weekdays: [5, 1, 1, 9] } }).repeat).toEqual({ every: 1, unit: "week", weekdays: [1, 5] });
     expect(cleanPatch({ repeat: { unit: "jaar" } }).repeat).toBeNull();
+  });
+});
+
+describe("gebied", () => {
+  it("accepteert een eigen gebied-id en weigert rommel", () => {
+    expect(cleanPatch({ areaId: "sport" }).areaId).toBe("sport");
+    expect(cleanPatch({ areaId: "<script>" }).areaId).toBeNull();
+    expect(cleanPatch({ areaId: null }).areaId).toBeNull();
   });
 });
 

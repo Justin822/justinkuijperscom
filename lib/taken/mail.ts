@@ -1,4 +1,5 @@
 import { addDays } from "./dates";
+import type { Area } from "./config";
 import { parseTask } from "./parse";
 import type { Task } from "./types";
 
@@ -39,9 +40,9 @@ export function gmailLink(threadId: string, account: string | null): string {
   return `https://mail.google.com/mail/u/${encodeURIComponent(account || "0")}/#all/${encodeURIComponent(threadId)}`;
 }
 
-export function mailToTask(mail: MailMeta, kind: MailKind, today: string, account: string | null): Partial<Task> {
+export function mailToTask(mail: MailMeta, kind: MailKind, today: string, account: string | null, areas?: Area[]): Partial<Task> {
   const subject = cleanSubject(mail.subject);
-  const { chips, ...parsed } = parseTask(subject, today);
+  const { chips, ...parsed } = parseTask(subject, today, areas);
   const from = personName(mail.from);
   const to = personName(mail.to);
   const title = (parsed.title || (kind === "wachten" ? `Antwoord van ${to || "iemand"}` : `Mail van ${from || "onbekend"}`)).slice(0, 300);

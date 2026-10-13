@@ -1,4 +1,4 @@
-import { AREAS, OPEN_STATUSES } from "./config";
+import { DEFAULT_AREAS, OPEN_STATUSES, type Area } from "./config";
 import { localToday, weekday } from "./dates";
 import type { AreaId, DayPlan, Task } from "./types";
 
@@ -30,7 +30,8 @@ export function computeReview(
   tasks: Task[],
   dayOf: (ms: number) => string = localToday,
   /** Focusminuten per dag en per gebied ("geen" = zonder gebied), uit de focuslog. */
-  focus: Record<string, number>[] = []
+  focus: Record<string, number>[] = [],
+  areaList: Area[] = DEFAULT_AREAS
 ) {
   const byId = new Map(tasks.map((t) => [t.id, t]));
   const inWeek = (ms: number | null) => Boolean(ms && dates.includes(dayOf(ms)));
@@ -68,7 +69,7 @@ export function computeReview(
   });
 
   const areas = [
-    ...AREAS.map((a) => areaRow(a.id, a.name, a.color)),
+    ...areaList.map((a) => areaRow(a.id, a.name, a.color)),
     areaRow(null, "Zonder gebied", "var(--faint)"),
   ].filter((a) => a.done || a.open || a.focusMinutes);
 

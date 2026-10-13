@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { blockInterval, freeMinutes, type Interval } from "@/lib/taken/agenda";
-import { AREA_BY_ID, OPEN_STATUSES } from "@/lib/taken/config";
+import { OPEN_STATUSES } from "@/lib/taken/config";
 import { addDays, formatLong, formatRelative, isIsoDate, weekday } from "@/lib/taken/dates";
 import { autoSchedule, type Placement } from "@/lib/taken/plan";
 import { rankTasks } from "@/lib/taken/score";
@@ -16,7 +16,7 @@ import { CalendarIcon, ChevronLeftIcon, ChevronRightIcon, PlayIcon, SearchIcon }
 import { anchorOf, Menu, type Anchor } from "../_components/Popover";
 import QuickAdd from "../_components/QuickAdd";
 import { CheckButton, focusLabel } from "../_components/TaskRow";
-import { eventsOn, useAgenda, useTakenActions, useTakenData, useTakenUi } from "../_components/TakenContext";
+import { eventsOn, useAgenda, useAreas, useTakenActions, useTakenData, useTakenUi } from "../_components/TakenContext";
 import { isPhone, readLocal, writeLocal } from "../_components/device";
 
 // Vandaag = dagplanner: links wat je gaat doen, rechts wanneer. Op mobiel wissel je tussen Lijst en Dag.
@@ -31,6 +31,7 @@ function greeting(hour: number) {
 const VIEW_KEY = "tk-today-view";
 
 export default function TodayPage() {
+  const { map: areaById, list: areaList } = useAreas();
   const params = useSearchParams();
   const router = useRouter();
   const { tasks, loaded, error, today, plan, reloadPlan, planAction, workday } = useTakenData();
@@ -91,7 +92,7 @@ export default function TodayPage() {
   const plannedThatDay = isToday ? [] : tasks.filter((t) => t.planDate === date && OPEN_STATUSES.includes(t.status));
   const toPlan = useMemo(
     () =>
-      rankTasks(tasks, date, [], [...pickIds, ...(plan?.swapped || []), ...plannedThatDay.map((t) => t.id)])
+      rankTasks(tasks, date, [], [...pickIds, ...(plan?.swapped || []), ...plannedThatDay.map((t) => t.id)], { areas: areaList })
         .map((s) => s.task)
         .filter((t) => !t.blockStart?.startsWith(date)),
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -175,7 +176,7 @@ export default function TodayPage() {
   const placingTask = placing ? byId.get(placing) : null;
 
   const row = (task: Task, opts: { num?: number; reason?: string } = {}) => {
-    const area = task.areaId ? AREA_BY_ID[task.areaId] : null;
+    const area = task.areaId ? areaById[task.areaId] : null;
     const done = task.status === "af";
     const blockedToday = task.blockStart?.startsWith(date);
     return (

@@ -4,12 +4,13 @@ import { useEffect, useMemo, useState } from "react";
 import { parseTask, splitEntries } from "@/lib/taken/parse";
 import type { Source, Task } from "@/lib/taken/types";
 import { ArrowUpIcon, MicIcon } from "./icons";
-import { useTakenActions, useTakenData } from "./TakenContext";
+import { useAreas, useTakenActions, useTakenData } from "./TakenContext";
 import { useSpeech } from "./useSpeech";
 
 // Eén zin typen of inspreken; de herkende stukjes verschijnen meteen als chips.
 
 export default function QuickAdd() {
+  const { list: areas } = useAreas();
   const { addRef, today } = useTakenData();
   const { addTasks, notify } = useTakenActions();
   const [text, setText] = useState("");
@@ -17,8 +18,8 @@ export default function QuickAdd() {
   const [busy, setBusy] = useState(false);
 
   const entries = useMemo(
-    () => splitEntries(text).map((entry) => parseTask(entry, today)).filter((p) => p.title),
-    [text, today]
+    () => splitEntries(text).map((entry) => parseTask(entry, today, areas)).filter((p) => p.title),
+    [text, today, areas]
   );
 
   const save = async () => {

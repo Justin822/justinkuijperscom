@@ -5,7 +5,7 @@ import { useMemo, useState } from "react";
 import { toCapture } from "@/lib/taken/capture-parse";
 import { parseTask, splitEntries } from "@/lib/taken/parse";
 import PageHeader from "../../_components/PageHeader";
-import { useTakenActions, useTakenData } from "../../_components/TakenContext";
+import { useAreas, useTakenActions, useTakenData } from "../../_components/TakenContext";
 
 // Gedeeld vanuit een andere app (Android-deelmenu, zie share_target in het manifest).
 // Je ziet eerst wat er herkend is en past het eventueel aan; dan staat het met één tik in je Inbox.
@@ -29,10 +29,11 @@ export default function SharePage() {
 
   const [text, setText] = useState(shared.text);
   const [busy, setBusy] = useState(false);
-  const capture = useMemo(() => toCapture({ text, url: shared.url }, today, "gedeeld"), [text, shared.url, today]);
+  const { list: areas } = useAreas();
+  const capture = useMemo(() => toCapture({ text, url: shared.url }, today, "gedeeld", areas), [text, shared.url, today, areas]);
   const preview = useMemo(
-    () => (capture.kind === "taken" ? splitEntries(text).map((line) => parseTask(line, today)).filter((p) => p.title) : []),
-    [capture.kind, text, today]
+    () => (capture.kind === "taken" ? splitEntries(text).map((line) => parseTask(line, today, areas)).filter((p) => p.title) : []),
+    [capture.kind, text, today, areas]
   );
 
   const save = async () => {

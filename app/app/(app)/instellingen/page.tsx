@@ -7,6 +7,7 @@ import { httpShortcutsExport } from "@/lib/taken/http-shortcuts";
 import { readLocal, writeLocal } from "../../_components/device";
 import { readTheme, setTheme, type Theme } from "../../_components/theme";
 import { usePush } from "../../_components/usePush";
+import AreasEditor from "../../_components/AreasEditor";
 import type { PublicSettings } from "@/lib/taken/types";
 import { TrashIcon } from "../../_components/icons";
 import PageHeader from "../../_components/PageHeader";
@@ -611,6 +612,19 @@ export default function SettingsPage() {
             </div>
           </div>
         )}
+      </Section>
+
+      <Section title="Gebieden" intro="De gebieden van je werk en leven. Ze bepalen de kleuren, de filters en de balans in je top 3.">
+        <AreasEditor
+          key={settings.areas.map((a) => a.id).join()}
+          areas={settings.areas}
+          busy={busy === "areas"}
+          onSave={async (areas) => {
+            const data = await act("areas", { areas }, "areas");
+            if (data) notify("Gebieden opgeslagen");
+            return Boolean(data);
+          }}
+        />
       </Section>
 
       <Section title="Weergave" intro="Licht, donker, of zoals je telefoon staat ingesteld. Geldt voor dit apparaat.">

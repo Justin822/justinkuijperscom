@@ -1,4 +1,3 @@
-import { AREA_BY_ID } from "./config";
 import { isIsoDate } from "./dates";
 import type { AreaId, Impact, Note, Repeat, Source, Status, Task } from "./types";
 
@@ -26,6 +25,9 @@ export function normalizeTask(task: any): Task {
   return { repeat: null, spawnedFrom: null, blockStart: null, focusMinutes: 0, googleEventId: null, googleSyncedAt: null, ...task };
 }
 
+/** Een gebied-id ziet er zo uit; of het gebied (nog) bestaat, maakt niet uit (gearchiveerd kan ook). */
+const areaId = (value: unknown): AreaId | null => (typeof value === "string" && /^[a-z0-9][a-z0-9-]{0,39}$/.test(value) ? value : null);
+
 const text = (value: unknown, max: number) =>
   typeof value === "string" && value.trim() ? value.trim().slice(0, max) : null;
 
@@ -41,7 +43,7 @@ export function cleanPatch(input: any): Partial<Task> {
   const has = (key: string) => Object.prototype.hasOwnProperty.call(input, key);
 
   if (has("title") && text(input.title, 300)) patch.title = text(input.title, 300) as string;
-  if (has("areaId")) patch.areaId = input.areaId in AREA_BY_ID ? (input.areaId as AreaId) : null;
+  if (has("areaId")) patch.areaId = areaId(input.areaId);
   if (has("project")) patch.project = text(input.project, 80);
   if (has("deadline")) patch.deadline = isIsoDate(input.deadline) ? input.deadline : null;
   if (has("deadlineHard")) patch.deadlineHard = Boolean(input.deadlineHard);
@@ -123,7 +125,7 @@ export function cleanNote(input: any): Partial<Note> {
   if (!input || typeof input !== "object") return patch;
   const has = (key: string) => Object.prototype.hasOwnProperty.call(input, key);
   if (has("body") && typeof input.body === "string") patch.body = input.body.slice(0, 100000);
-  if (has("areaId")) patch.areaId = input.areaId in AREA_BY_ID ? (input.areaId as AreaId) : null;
+  if (has("areaId")) patch.areaId = areaId(input.areaId);
   if (has("pinned")) patch.pinned = Boolean(input.pinned);
   return patch;
 }

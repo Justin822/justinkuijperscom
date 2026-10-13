@@ -7,6 +7,7 @@ import { DEFAULT_MAIL } from "@/lib/taken/gmail";
 import { publicSettings } from "@/lib/taken/settings";
 import { getPushSubscriptions, getSettings, updateSettings } from "@/lib/taken/store";
 import { DEFAULT_PUSH } from "@/lib/taken/push-messages";
+import { cleanAreas } from "@/lib/taken/config";
 import { newId } from "@/lib/taken/validate";
 import { requireAccess } from "@/lib/taken/session";
 
@@ -108,6 +109,13 @@ export async function POST(request: Request) {
           afsluitTijd: typeof body.afsluitTijd === "string" && TIME.test(body.afsluitTijd) ? body.afsluitTijd : current.afsluitTijd,
         };
         await updateSettings((s) => ({ ...s, push: next }));
+        return reply();
+      }
+      case "areas": {
+        // Je eigen gebieden (naam, kort, kleur, trefwoorden, volgorde, archiveren).
+        const areas = cleanAreas(body.areas);
+        if (typeof areas === "string") return bad(areas);
+        await updateSettings((s) => ({ ...s, areas }));
         return reply();
       }
       case "googleDisconnect": {

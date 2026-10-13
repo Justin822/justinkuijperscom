@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { AREA_BY_ID, OPEN_STATUSES } from "@/lib/taken/config";
+import { OPEN_STATUSES } from "@/lib/taken/config";
 import { addDays, formatRelative, isoWeek, MONTHS, weekday } from "@/lib/taken/dates";
 import { rankTasks } from "@/lib/taken/score";
 import type { AreaId, Task } from "@/lib/taken/types";
@@ -11,7 +11,7 @@ import CalendarGrid from "../../_components/calendar/CalendarGrid";
 import { useDragSource } from "../../_components/calendar/DragLayer";
 import { durationLabel } from "../../_components/calendar/time";
 import { ChevronLeftIcon, ChevronRightIcon, GearIcon } from "../../_components/icons";
-import { useAgenda, useTakenActions, useTakenData } from "../../_components/TakenContext";
+import { useAgenda, useAreas, useTakenActions, useTakenData } from "../../_components/TakenContext";
 import { isPhone, readLocal, writeLocal } from "../../_components/device";
 
 // Week: je afspraken en timeblocks over meerdere dagen. Sleep taken uit de lade de week in.
@@ -22,6 +22,7 @@ const RECONNECT_KEY = "tk-hide-reconnect";
 
 
 export default function WeekPage() {
+  const { map: areaById, list: areaList } = useAreas();
   const router = useRouter();
   const { tasks, today, settings } = useTakenData();
   const { openTask } = useTakenActions();
@@ -56,10 +57,10 @@ export default function WeekPage() {
 
   const toPlan = useMemo(
     () =>
-      rankTasks(tasks, today, [])
+      rankTasks(tasks, today, [], [], { areas: areaList })
         .map((s) => s.task)
         .filter((t) => !t.blockStart && (!area || t.areaId === area)),
-    [tasks, today, area]
+    [tasks, today, area, areaList]
   );
 
   // Vegen op de kop: vorige/volgende.
@@ -166,7 +167,7 @@ export default function WeekPage() {
                       </div>
                       <div className="tk-meta">
                         <span>{durationLabel(t.estimate || 30)}</span>
-                        {t.areaId && <span>{AREA_BY_ID[t.areaId]?.short}</span>}
+                        {t.areaId && <span>{areaById[t.areaId]?.short}</span>}
                         {OPEN_STATUSES.includes(t.status) && t.planDate && <span>{formatRelative(t.planDate, today)}</span>}
                       </div>
                     </div>

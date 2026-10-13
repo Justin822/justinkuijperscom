@@ -1,3 +1,4 @@
+import { areasOf } from "./config";
 import { canEdit, canReadMail, googleConfigured } from "./google";
 import { pushConfigured, pushPublicKey } from "./push";
 import { DEFAULT_PUSH } from "./push-messages";
@@ -39,6 +40,7 @@ export function publicSettings(s: Settings, devices = 0): PublicSettings {
       lastError: s.mail?.lastError ?? null,
       lastCount: s.mail?.lastCount ?? 0,
     },
+    areas: areasOf(s),
     push: {
       ...DEFAULT_PUSH,
       ...(s.push || {}),

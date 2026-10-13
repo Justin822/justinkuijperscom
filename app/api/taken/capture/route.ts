@@ -3,7 +3,8 @@ import { toCapture, type CaptureInput } from "@/lib/taken/capture";
 import { requireToken, respond } from "@/lib/taken/capture-server";
 import { amsterdamToday, formatRelative } from "@/lib/taken/dates";
 import { fail } from "@/lib/taken/server";
-import { saveNote, saveTasks } from "@/lib/taken/store";
+import { areasOf } from "@/lib/taken/config";
+import { getSettings, saveNote, saveTasks } from "@/lib/taken/store";
 import type { Source } from "@/lib/taken/types";
 import { newNote, newTask } from "@/lib/taken/validate";
 
@@ -34,7 +35,7 @@ export async function POST(request: Request) {
     const input: CaptureInput = { text: str(raw.text, 5000), title: str(raw.title, 300), url: str(raw.url, 2000), note: str(raw.note, 5000) };
     const source: Source = raw.source === "gedeeld" ? "gedeeld" : "snelknop";
     const today = amsterdamToday();
-    const capture = toCapture(input, today, source);
+    const capture = toCapture(input, today, source, areasOf(await getSettings()));
 
     if (capture.kind === "leeg") return respond(request, { error: "Er stond niets in." }, "Er stond niets in.", 400);
 

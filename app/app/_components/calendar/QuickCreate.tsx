@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { parseTask } from "@/lib/taken/parse";
 import type { Task } from "@/lib/taken/types";
 import Popover, { type Anchor } from "../Popover";
-import { useTakenActions, useTakenData } from "../TakenContext";
+import { useAreas, useTakenActions, useTakenData } from "../TakenContext";
 import { blockStartOf, durationLabel, fmt, localMs } from "./time";
 import { useEvents } from "./useEvents";
 import { readLocal, writeLocal } from "../device";
@@ -35,7 +35,8 @@ export default function QuickCreate({
   const [kind, setKind] = useState<Kind>("taak");
   const [calendarId, setCalendarId] = useState<string | null>(google?.defaultCalendarId || calendars[0]?.id || null);
   const [text, setText] = useState("");
-  const parsed = useMemo(() => (kind === "taak" && text.trim() ? parseTask(text, today) : null), [kind, text, today]);
+  const { list: areas } = useAreas();
+  const parsed = useMemo(() => (kind === "taak" && text.trim() ? parseTask(text, today, areas) : null), [kind, text, today, areas]);
 
   // De vorige keuze (taak of afspraak) onthouden.
   useEffect(() => {

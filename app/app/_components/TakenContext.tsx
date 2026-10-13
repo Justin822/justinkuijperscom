@@ -6,6 +6,7 @@ import { applyDelta } from "@/lib/taken/delta";
 import { newId, newNote, newTask } from "@/lib/taken/validate";
 import { clearOffline, dequeue, enqueue, isOfflineError, loadSnapshot, QueuedError, queued, saveSnapshot } from "./offline";
 import { WORKDAY } from "@/lib/taken/agenda";
+import { activeAreas, areaMap, DEFAULT_AREAS, type Area } from "@/lib/taken/config";
 import type { CalendarEvent, DayPlan, Note, PublicSettings, Task } from "@/lib/taken/types";
 import { readLocal, writeLocal } from "./device";
 
@@ -86,6 +87,10 @@ const ActionsContext = createContext<ActionsCtx | null>(null);
 const UiContext = createContext<UiCtx | null>(null);
 /** Alleen de datum van vandaag (verandert één keer per dag), voor lijstregels die verder niets nodig hebben. */
 const TodayContext = createContext<string>("");
+/** Je gebieden (verandert alleen als je ze in Instellingen aanpast). */
+type AreasCtx = { list: Area[]; active: Area[]; map: Record<string, Area> };
+const defaultAreas: AreasCtx = { list: DEFAULT_AREAS, active: activeAreas(DEFAULT_AREAS), map: areaMap(DEFAULT_AREAS) };
+const AreasContext = createContext<AreasCtx>(defaultAreas);
 
 /** Fout van de API, met de statuscode en het antwoord (bijv. de nieuwe versie bij 409). */
 export class ApiError extends Error {
@@ -601,6 +606,12 @@ export function TakenProvider({ children }: { children: React.ReactNode }) {
     setSettingsState(s);
   }, []);
 
+  const areaList = settings?.areas;
+  const areas = useMemo<AreasCtx>(() => {
+    const list = areaList && areaList.length ? areaList : DEFAULT_AREAS;
+    return { list, active: activeAreas(list), map: areaMap(list) };
+  }, [areaList]);
+
   const data = useMemo<DataCtx>(
     () => ({
       tasks,
@@ -695,7 +706,9 @@ export function TakenProvider({ children }: { children: React.ReactNode }) {
     <ActionsContext.Provider value={actions}>
       <DataContext.Provider value={data}>
         <UiContext.Provider value={ui}>
-          <TodayContext.Provider value={today}>{mounted ? children : null}</TodayContext.Provider>
+          <TodayContext.Provider value={today}>
+            <AreasContext.Provider value={areas}>{mounted ? children : null}</AreasContext.Provider>
+          </TodayContext.Provider>
         </UiContext.Provider>
       </DataContext.Provider>
     </ActionsContext.Provider>
@@ -715,6 +728,8 @@ export const useTakenActions = () => need(useContext(ActionsContext), "useTakenA
 export const useTakenUi = () => need(useContext(UiContext), "useTakenUi");
 /** De datum van vandaag (YYYY-MM-DD). */
 export const useToday = () => useContext(TodayContext);
+/** Je gebieden: `list` (alle), `active` (te kiezen) en `map` (op id). */
+export const useAreas = () => useContext(AreasContext);
 
 // ----- Agenda -----
 type AgendaEntry = { at: number; from: string; to: string; data: AgendaData };

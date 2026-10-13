@@ -4,7 +4,8 @@ import { addDays, amsterdamToday, isIsoDate } from "./dates";
 import { freeMinutesOn } from "./agenda-server";
 import { spawnNext } from "./repeat";
 import { DayContext, makePlan, pickTop, rankTasks } from "./score";
-import { getDays, getTasks, mutateDay } from "./store";
+import { getDays, getSettings, getTasks, mutateDay } from "./store";
+import { areasOf } from "./config";
 import type { DayPlan, Task } from "./types";
 
 export const noStore = { "Cache-Control": "no-store" };
@@ -43,6 +44,7 @@ export async function syncPlan(plan: DayPlan, tasks?: Task[], ctx: DayContext = 
   let top3 = keep;
   if (keep.length < 3 && !plan.closedAt) {
     const keptTasks = keep.map((p) => byId.get(p.id) as Task);
+    if (!ctx.areas) ctx = { ...ctx, areas: areasOf(await getSettings()) };
     const ranked = rankTasks(
       all,
       plan.date,
@@ -80,12 +82,13 @@ export async function todayPlan(date: string, tasks?: Task[]): Promise<DayPlan> 
 
 /** Vrije tijd van vandaag uit de agenda; mag nooit de top 3 blokkeren (max. 3 seconden). */
 export async function dayContext(date: string, tasks: Task[]): Promise<DayContext> {
+  const areas = areasOf(await getSettings());
   try {
     const timeout = new Promise<null>((resolve) => setTimeout(() => resolve(null), 3000));
-    return { freeMinutes: await Promise.race([freeMinutesOn(date, tasks), timeout]) };
+    return { freeMinutes: await Promise.race([freeMinutesOn(date, tasks), timeout]), areas };
   } catch (error) {
     console.error("taken agenda", error);
-    return {};
+    return { areas };
   }
 }
 

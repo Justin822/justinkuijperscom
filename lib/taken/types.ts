@@ -1,4 +1,7 @@
-export type AreaId = "appel" | "felicio" | "cliq" | "side" | "prive";
+import type { Area } from "./config";
+
+/** Id van een gebied (zie lib/taken/config.ts voor de standaard; aan te passen in Instellingen). */
+export type AreaId = string;
 
 export type Status = "inbox" | "gepland" | "bezig" | "wachten" | "ooit" | "af";
 export type Impact = "laag" | "middel" | "hoog";
@@ -157,6 +160,8 @@ export type PushPrefs = {
 };
 
 export type Settings = {
+  /** Je eigen gebieden (leeg of ontbrekend = de standaard uit lib/taken/config.ts). */
+  areas?: Area[];
   icsSources: IcsSource[];
   workday: { start: string; end: string };
   google: GoogleLink | null;
@@ -183,4 +188,5 @@ export type PublicSettings = {
   captureTokens: { id: string; name: string; createdAt: number; lastUsedAt: number | null }[];
   mail: { available: boolean; enabled: boolean; lastRunAt: number | null; lastError: string | null; lastCount: number };
   push: PushPrefs & { configured: boolean; publicKey: string | null; scheduled: boolean; devices: number };
+  areas: Area[];
 };
