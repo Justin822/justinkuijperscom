@@ -1,7 +1,7 @@
 import { addDays } from "./dates";
 import { plannerItem, plannerItems, type PlannerItem } from "./google";
 import { DEFAULT_TZ, utcToZoned, zonedToUtc } from "./ics";
-import { getTasks, saveTasks } from "./store";
+import { getTasks, mutateTask } from "./store";
 import type { Task } from "./types";
 import { applyPatch } from "./validate";
 
@@ -50,10 +50,9 @@ export async function syncFromPlanner(fromDate: string, toDate: string): Promise
   const byId = new Map(items.map((i) => [i.id, i]));
   const tasks = await getTasks();
   const now = Date.now();
-  const changed: Task[] = [];
+  const updates: { id: string; item: PlannerItem | null }[] = [];
   const apply = (task: Task, item: PlannerItem | null) => {
-    const patch = fromPlanner(task, item);
-    if (patch) changed.push({ ...applyPatch(task, patch, now), googleSyncedAt: now });
+    if (fromPlanner(task, item)) updates.push({ id: task.id, item });
   };
 
   const missing: Task[] = [];
@@ -68,6 +67,14 @@ export async function syncFromPlanner(fromDate: string, toDate: string): Promise
     missing.slice(0, 10).map(async (task) => apply(task, await plannerItem(task.googleEventId as string)))
   );
 
-  if (changed.length) await saveTasks(changed);
+  // Elke wijziging opnieuw bepalen op de verse taak (compare-and-set): wat je intussen in de app deed, blijft staan.
+  const changed: Task[] = [];
+  for (const { id, item } of updates) {
+    const result = await mutateTask(id, (current) => {
+      const patch = current && fromPlanner(current, item);
+      return patch ? { ...applyPatch(current, patch, now), googleSyncedAt: now } : null;
+    });
+    if (result.changed && result.value) changed.push(result.value);
+  }
   return changed;
 }

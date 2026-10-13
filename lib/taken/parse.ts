@@ -1,4 +1,4 @@
-import { AREAS, estimateLabel } from "./config";
+import { activeAreas, DEFAULT_AREAS, estimateLabel, type Area } from "./config";
 import { addDays, formatRelative, makeDate, MONTHS, nextWeekday, weekday, WEEKDAYS } from "./dates";
 import { firstDate, repeatLabel } from "./repeat";
 import type { AreaId, Impact, Repeat, Status } from "./types";
@@ -142,9 +142,9 @@ const ESTIMATE_PATTERNS: Estimate[] = [
   },
 ];
 
-function matchKeyword(value: string): { areaId: AreaId; project: string | null } | null {
+function matchKeyword(value: string, areas: Area[]): { areaId: AreaId; project: string | null } | null {
   const lower = value.trim().toLowerCase();
-  for (const area of AREAS) {
+  for (const area of areas) {
     for (const kw of area.keywords) {
       if (lower === kw) return { areaId: area.id, project: null };
       const m = lower.match(new RegExp(`^${esc(kw)}\\s*/\\s*(.+)$`, "u"));
@@ -174,7 +174,9 @@ export function splitEntries(text: string): string[] {
     .filter(Boolean);
 }
 
-export function parseTask(input: string, today: string): Parsed {
+/** `areas`: je gebieden (gearchiveerde worden niet herkend); standaard die uit config.ts. */
+export function parseTask(input: string, today: string, allAreas: Area[] = DEFAULT_AREAS): Parsed {
+  const areas = activeAreas(allAreas);
   const result: Parsed = {
     title: "",
     areaId: null,
@@ -203,7 +205,7 @@ export function parseTask(input: string, today: string): Parsed {
   // 1. #tags: #appel, #appel/leadgeneratie, #hoog, #ooit, #wachten, #bezig
   take(new RegExp(`${START}#(?<tag>[^\\s,;]+)`, "giu"), (g) => {
     const tag = g.tag.toLowerCase();
-    const area = matchKeyword(g.tag);
+    const area = matchKeyword(g.tag, areas);
     if (area && !result.areaId) {
       Object.assign(result, area);
       return true;
@@ -242,7 +244,7 @@ export function parseTask(input: string, today: string): Parsed {
   s = s
     .split(",")
     .filter((segment) => {
-      const area = matchKeyword(segment);
+      const area = matchKeyword(segment, areas);
       if (area && !result.areaId) {
         Object.assign(result, area);
         return false;
@@ -329,7 +331,7 @@ export function parseTask(input: string, today: string): Parsed {
 
   // 10. Gebied herkennen aan een sterk woord dat in de titel mag blijven ("Felicio nieuwsbrief").
   if (!result.areaId) {
-    for (const area of AREAS) {
+    for (const area of areas) {
       if (area.strong.some((kw) => new RegExp(`${START}${esc(kw)}${END}`, "iu").test(s))) {
         result.areaId = area.id;
         break;
@@ -352,7 +354,7 @@ export function parseTask(input: string, today: string): Parsed {
   if (result.repeat && !result.planDate) result.planDate = firstDate(result.repeat, today);
 
   // Chips
-  const area = AREAS.find((a) => a.id === result.areaId);
+  const area = areas.find((a) => a.id === result.areaId);
   if (area) result.chips.push({ kind: "gebied", label: result.project ? `${area.short} / ${result.project}` : area.short });
   if (result.deadline)
     result.chips.push({

@@ -67,3 +67,15 @@ export function formatRelative(iso: string, today: string) {
   const short = `${WEEKDAYS_SHORT[weekday(iso)]} ${d} ${MONTHS[m - 1].slice(0, 3)}`;
   return y === Number(today.slice(0, 4)) ? short : `${short} ${y}`;
 }
+
+/** ISO-weeknummer (week begint op maandag; week 1 bevat 4 januari). */
+export function isoWeek(date: string): number {
+  const monday = addDays(date, -((weekday(date) + 6) % 7));
+  const thursday = addDays(monday, 3);
+  const jan4 = `${thursday.slice(0, 4)}-01-04`;
+  const firstMonday = addDays(jan4, -((weekday(jan4) + 6) % 7));
+  return Math.floor(diffDays(firstMonday, thursday) / 7) + 1;
+}
+
+/** Maandag van de week waarin deze dag valt. */
+export const mondayOf = (date: string) => addDays(date, -((weekday(date) + 6) % 7));

@@ -7,14 +7,15 @@ import { addDays, localToday } from "@/lib/taken/dates";
 import type { Task } from "@/lib/taken/types";
 import InboxActions from "../../_components/InboxActions";
 import TaskRow from "../../_components/TaskRow";
-import { api, useTaken } from "../../_components/TakenContext";
+import { api, useTakenActions, useTakenData } from "../../_components/TakenContext";
 
 // Dagafsluiting in drie stappen: inbox naar nul, vandaag afronden, kiezen bij 3× doorgeschoven.
 
 const STEPS = ["Inbox naar nul", "Vandaag afronden", "Knopen doorhakken", "Klaar"];
 
 export default function ClosePage() {
-  const { tasks, today, plan, reloadPlan, mergeTasks, updateTask, removeTask, notify } = useTaken();
+  const { tasks, today, plan, reloadPlan } = useTakenData();
+  const { mergeTasks, updateTask, removeTask, notify } = useTakenActions();
   const [step, setStep] = useState(0);
   const [keep, setKeep] = useState<string[]>([]); // taken die je bewust niet doorschuift
   const [busy, setBusy] = useState(false);
@@ -47,7 +48,7 @@ export default function ClosePage() {
       const postpone = todays.filter((t) => t.status !== "af" && !keep.includes(t.id)).map((t) => t.id);
       const data = await api<{ tasks: Task[] }>("/api/taken/close", {
         method: "POST",
-        body: JSON.stringify({ date: today, postpone, done: [] }),
+        body: JSON.stringify({ date: today, postpone }),
       });
       mergeTasks(data.tasks);
       setPostponedCount(postpone.length);

@@ -2,19 +2,25 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { DragProvider } from "./calendar/DragLayer";
 import CommandPalette from "./CommandPalette";
 import FocusBar from "./FocusBar";
 import { SearchIcon } from "./icons";
 import { EXTRA, NAV } from "./nav";
-import { useTaken } from "./TakenContext";
+import { useTakenActions, useTakenData, useTakenUi } from "./TakenContext";
 import TaskSheet from "./TaskSheet";
+import { SW_URL } from "./device";
+import { applyTheme, readTheme } from "./theme";
+import ShortcutHelp from "./ShortcutHelp";
 
 export default function Shell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname() || "";
-  const { tasks, addRef, toast, editing, openTask, palette, openPalette, undoLast } = useTaken();
+  const { tasks, addRef } = useTakenData();
+  const { openTask, openPalette, undoLast } = useTakenActions();
+  const { toast, editing, palette, sync } = useTakenUi();
   const inboxCount = tasks.filter((t) => t.status === "inbox").length;
+  const [help, setHelp] = useState(false);
 
   // Sneltoetsen: ⌘K of / zoekt, N voegt toe, Escape sluit.
   useEffect(() => {
@@ -33,7 +39,10 @@ export default function Shell({ children }: { children: React.ReactNode }) {
         return;
       }
       if (typing || e.metaKey || e.ctrlKey || e.altKey) return;
-      if (e.key === "/") {
+      if (e.key === "?") {
+        e.preventDefault();
+        setHelp((h) => !h);
+      } else if (e.key === "/") {
         e.preventDefault();
         openPalette("search");
       } else if (e.key === "n" || e.key === "N") {
@@ -42,16 +51,20 @@ export default function Shell({ children }: { children: React.ReactNode }) {
           window.scrollTo({ top: 0 });
           addRef.current.focus();
         } else openPalette("add");
-      } else if (e.key === "Escape" && editing) openTask(null);
+      }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [addRef, editing, openTask, palette, openPalette, undoLast]);
 
+  // Thema-kleur van de statusbalk volgens je keuze (het thema zelf zet het script in de layout).
+  useEffect(() => applyTheme(readTheme()), []);
+
   // Service worker voor de app op je beginscherm.
   useEffect(() => {
     if ("serviceWorker" in navigator && process.env.NODE_ENV === "production") {
-      navigator.serviceWorker.register("/taken-sw.js", { scope: "/app" }).catch(() => {});
+      // ?v=build: een nieuwe deploy installeert een nieuwe service worker met een eigen, verse cache.
+      navigator.serviceWorker.register(SW_URL, { scope: "/app" }).catch(() => {});
     }
   }, []);
 
@@ -101,9 +114,16 @@ export default function Shell({ children }: { children: React.ReactNode }) {
           </Link>
         ))}
       </nav>
+      {(!sync.online || sync.pending > 0) && (
+        <div className="tk-sync" role="status" aria-live="polite">
+          {!sync.online ? "Offline" : "Bezig met versturen"}
+          {sync.pending > 0 && ` · ${sync.pending} ${sync.pending === 1 ? "wijziging wacht" : "wijzigingen wachten"}`}
+        </div>
+      )}
       <FocusBar />
-      {editing && <TaskSheet id={editing} />}
+      {editing && <TaskSheet key={editing} id={editing} />}
       {palette && <CommandPalette />}
+      {help && <ShortcutHelp onClose={() => setHelp(false)} />}
       {toast && (
         <div className="tk-toast" role="status">
           <span>{toast.text}</span>

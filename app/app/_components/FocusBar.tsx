@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { CheckIcon, PauseIcon, PlayIcon, StopIcon, XIcon } from "./icons";
-import { focusElapsed, useTaken } from "./TakenContext";
+import { focusElapsed, useTakenActions, useTakenData, useTakenUi } from "./TakenContext";
 
 // Focus-timer: smalle balk onderin, en een rustig volledig scherm als je erop tikt.
 
@@ -36,7 +36,9 @@ function chime() {
 }
 
 export default function FocusBar() {
-  const { focus, tasks, pauseFocus, resumeFocus, stopFocus, focusOpen, setFocusOpen } = useTaken();
+  const { tasks } = useTakenData();
+  const { setFocusOpen } = useTakenActions();
+  const { focus, pauseFocus, resumeFocus, stopFocus, focusOpen } = useTakenUi();
   const [, setTick] = useState(0);
   const notified = useRef<string | null>(null);
 

@@ -1,4 +1,6 @@
-const WorkTimeline = ({ workPlaces }) => {
+type WorkPlace = { company: string; position: string; duration: string };
+
+const WorkTimeline = ({ workPlaces }: { workPlaces: WorkPlace[] }) => {
   return (
     <ol className="relative border-l border-gray-200 dark:border-gray-700 mt-6">
       {workPlaces.map((workplace, index) => (

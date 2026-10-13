@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { connect, redirectUri } from "@/lib/taken/google";
+import { requireAccess } from "@/lib/taken/session";
 
 export const dynamic = "force-dynamic";
 
@@ -7,6 +8,8 @@ const STATE_COOKIE = "taken_google_state";
 
 // Terug van Google: code omwisselen, agenda's ophalen en terug naar de instellingen.
 export async function GET(request: NextRequest) {
+  const denied = await requireAccess(request);
+  if (denied) return denied;
   const redirect = redirectUri(request);
   const params = request.nextUrl.searchParams;
   const back = (query: string) => {

@@ -2,15 +2,18 @@
 
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useMemo, useState } from "react";
-import { AREA_BY_ID, AREAS } from "@/lib/taken/config";
+
 import { addDays } from "@/lib/taken/dates";
 import type { AreaId, Task } from "@/lib/taken/types";
+import AreaPills from "../../_components/AreaPills";
 import { SearchIcon } from "../../_components/icons";
 import InboxActions from "../../_components/InboxActions";
 import PageHeader from "../../_components/PageHeader";
 import QuickAdd from "../../_components/QuickAdd";
 import TaskRow from "../../_components/TaskRow";
-import { useTaken } from "../../_components/TakenContext";
+import { useAreas, useTakenActions, useTakenData } from "../../_components/TakenContext";
+import { searchable } from "@/lib/taken/text";
+import { SOURCE_GROUP_LABEL, sourceGroup, type SourceGroup } from "@/lib/taken/source";
 
 // Eén tab voor alle taken: Inbox, Open (per gebied en project), Wachten op, Ooit en Af.
 
@@ -33,26 +36,29 @@ const byUrgency = (a: Task, b: Task) =>
 const inList = (t: Task, list: List) =>
   list === "open" ? t.status === "gepland" || t.status === "bezig" : t.status === list;
 
-const norm = (s: string) => s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
 
 export default function TasksPage() {
+  const { map: areaById, list: areaList } = useAreas();
   const router = useRouter();
   const pathname = usePathname();
   const params = useSearchParams();
-  const { tasks, loaded, updateTask, today } = useTaken();
+  const { tasks, loaded, today } = useTakenData();
+  const { updateTask } = useTakenActions();
   const list = (LISTS.find((l) => l.id === params?.get("lijst"))?.id || (tasks.some((t) => t.status === "inbox") ? "inbox" : "open")) as List;
-  const [area, setArea] = useState<AreaId | "geen" | null>(null);
+  const [area, setArea] = useState<AreaId | null>(null);
   const [query, setQuery] = useState("");
+  const [source, setSource] = useState<SourceGroup | null>(null);
   const [expanded, setExpanded] = useState<string | null>(null);
 
   const setList = (id: List) => router.replace(`${pathname}?lijst=${id}`);
 
   const visible = useMemo(() => {
-    const q = norm(query.trim());
+    const q = searchable(query.trim());
     return tasks
       .filter((t) => inList(t, list))
-      .filter((t) => !area || (area === "geen" ? !t.areaId : t.areaId === area))
-      .filter((t) => !q || norm(`${t.title} ${t.project || ""} ${t.note || ""} ${t.waitingOn || ""}`).includes(q))
+      .filter((t) => !area || t.areaId === area)
+      .filter((t) => list !== "inbox" || !source || sourceGroup(t.source) === source)
+      .filter((t) => !q || searchable(`${t.title} ${t.project || ""} ${t.note || ""} ${t.waitingOn || ""}`).includes(q))
       .sort(
         list === "af"
           ? (a, b) => (b.doneAt || 0) - (a.doneAt || 0)
@@ -62,7 +68,14 @@ export default function TasksPage() {
           ? (a, b) => (a.followUp || "9999").localeCompare(b.followUp || "9999")
           : byUrgency
       );
-  }, [tasks, list, area, query]);
+  }, [tasks, list, area, query, source]);
+
+  // Inbox: filteren op herkomst, alleen als er meer dan één soort in staat.
+  const sourceCounts = useMemo(() => {
+    const counts = new Map<SourceGroup, number>();
+    for (const t of tasks) if (t.status === "inbox") counts.set(sourceGroup(t.source), (counts.get(sourceGroup(t.source)) || 0) + 1);
+    return counts;
+  }, [tasks]);
 
   const counts = Object.fromEntries(LISTS.map((l) => [l.id, tasks.filter((t) => inList(t, l.id)).length])) as Record<List, number>;
 
@@ -74,13 +87,13 @@ export default function TasksPage() {
       const key = `${t.areaId || "geen"}|${t.project || ""}`;
       map.set(key, [...(map.get(key) || []), t]);
     }
-    const order = [...AREAS.map((a) => a.id as string), "geen"];
+    const order = [...areaList.map((a) => a.id as string), "geen"];
     return Array.from(map.entries()).sort(([a], [b]) => {
       const [aa, ap] = a.split("|");
       const [ba, bp] = b.split("|");
       return order.indexOf(aa) - order.indexOf(ba) || (ap ? (bp ? ap.localeCompare(bp) : -1) : bp ? 1 : 0);
     });
-  }, [visible, list]);
+  }, [visible, list, areaList]);
 
   const rowFor = (task: Task) => {
     if (list === "inbox")
@@ -156,24 +169,23 @@ export default function TasksPage() {
         ))}
       </div>
 
-      <div className="mt-3 flex flex-wrap items-center gap-2">
-        <div className="tk-pills">
-          <button type="button" className="tk-pill" aria-pressed={!area} onClick={() => setArea(null)}>
-            Alles
+      {list === "inbox" && sourceCounts.size > 1 && (
+        <div className="tk-pills mt-3" aria-label="Herkomst">
+          <button type="button" className="tk-pill" aria-pressed={!source} onClick={() => setSource(null)}>
+            Alle bronnen
           </button>
-          {AREAS.map((a) => (
-            <button
-              key={a.id}
-              type="button"
-              className="tk-pill"
-              aria-pressed={area === a.id}
-              onClick={() => setArea(area === a.id ? null : a.id)}
-            >
-              <span className="tk-dot" style={{ background: a.color }} />
-              {a.short}
-            </button>
-          ))}
+          {(["mail", "gedeeld", "snelknop", "app"] as SourceGroup[])
+            .filter((g) => sourceCounts.has(g))
+            .map((g) => (
+              <button key={g} type="button" className="tk-pill" aria-pressed={source === g} onClick={() => setSource(source === g ? null : g)}>
+                {SOURCE_GROUP_LABEL[g]} <span className="tk-faint">{sourceCounts.get(g)}</span>
+              </button>
+            ))}
         </div>
+      )}
+
+      <div className="mt-3 flex flex-wrap items-center gap-2">
+        <AreaPills value={area} onChange={setArea} toggle all />
         <label className="ml-auto flex h-7 items-center gap-1.5 tk-faint" style={{ minWidth: 140 }}>
           <SearchIcon className="h-4 w-4" />
           <input
@@ -194,7 +206,7 @@ export default function TasksPage() {
         ) : list === "open" ? (
           groups.map(([key, items]) => {
             const [areaId, project] = key.split("|");
-            const a = AREA_BY_ID[areaId as AreaId];
+            const a = areaById[areaId as AreaId];
             return (
               <section key={key} className="mt-5">
                 <div className="tk-h2 flex items-center gap-2">

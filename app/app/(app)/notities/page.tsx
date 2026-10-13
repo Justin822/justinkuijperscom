@@ -3,26 +3,29 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
-import { AREA_BY_ID, AREAS } from "@/lib/taken/config";
+
 import { formatRelative, localToday } from "@/lib/taken/dates";
 import { dailyTitle, noteTitle, notePreview } from "@/lib/taken/notes";
 import type { AreaId, Note } from "@/lib/taken/types";
+import AreaPills from "../../_components/AreaPills";
 import { PinIcon, PlusIcon, SearchIcon } from "../../_components/icons";
 import PageHeader from "../../_components/PageHeader";
-import { useTaken } from "../../_components/TakenContext";
+import { useAreas, useTakenActions, useTakenData } from "../../_components/TakenContext";
+import { searchable } from "@/lib/taken/text";
 
-const norm = (s: string) => s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
 
 export default function NotesPage() {
+  const { map: areaById } = useAreas();
   const router = useRouter();
-  const { notes, loaded, createNote, today, notify } = useTaken();
+  const { notes, loaded, today } = useTakenData();
+  const { createNote, notify } = useTakenActions();
   const [query, setQuery] = useState("");
   const [area, setArea] = useState<AreaId | null>(null);
 
   const visible = useMemo(() => {
-    const q = norm(query.trim());
+    const q = searchable(query.trim());
     return notes
-      .filter((n) => (!area || n.areaId === area) && (!q || norm(n.body).includes(q)))
+      .filter((n) => (!area || n.areaId === area) && (!q || searchable(n.body).includes(q)))
       .sort((a, b) => b.updatedAt - a.updatedAt);
   }, [notes, query, area]);
   const pinned = visible.filter((n) => n.pinned);
@@ -44,7 +47,7 @@ export default function NotesPage() {
   };
 
   const row = (n: Note) => {
-    const a = n.areaId ? AREA_BY_ID[n.areaId] : null;
+    const a = n.areaId ? areaById[n.areaId] : null;
     const preview = notePreview(n);
     return (
       <Link key={n.id} href={`/app/notities/${n.id}`} className="tk-note-row">
@@ -82,23 +85,7 @@ export default function NotesPage() {
         <SearchIcon className="h-4 w-4 tk-faint" />
         <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Zoek in notities" aria-label="Zoek in notities" />
       </label>
-      <div className="tk-pills mt-3">
-        <button type="button" className="tk-pill" aria-pressed={!area} onClick={() => setArea(null)}>
-          Alles
-        </button>
-        {AREAS.map((a) => (
-          <button
-            key={a.id}
-            type="button"
-            className="tk-pill"
-            aria-pressed={area === a.id}
-            onClick={() => setArea(area === a.id ? null : a.id)}
-          >
-            <span className="tk-dot" style={{ background: a.color }} />
-            {a.short}
-          </button>
-        ))}
-      </div>
+      <AreaPills className="mt-3" value={area} onChange={setArea} toggle all />
 
       {!loaded ? (
         <div className="tk-empty">Laden…</div>

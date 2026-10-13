@@ -1,21 +1,32 @@
 import { NextResponse } from "next/server";
-import { getNotes, saveNote } from "@/lib/taken/store";
+import { getNote, getNotes, saveNote } from "@/lib/taken/store";
 import { fail, noStore } from "@/lib/taken/server";
 import { newNote } from "@/lib/taken/validate";
+import { makeDelta, sinceParam } from "@/lib/taken/delta";
+import { requireAccess } from "@/lib/taken/session";
 
 export const dynamic = "force-dynamic";
 
-export async function GET() {
+export async function GET(request: Request) {
+  const denied = await requireAccess(request);
+  if (denied) return denied;
   try {
-    return NextResponse.json({ notes: await getNotes() }, { headers: noStore });
+    // Met ?since= alleen notities die sindsdien veranderden (plus alle id's voor verwijderingen).
+    const delta = makeDelta(await getNotes(), sinceParam(request));
+    return NextResponse.json({ notes: delta.items, ids: delta.ids, now: delta.now }, { headers: noStore });
   } catch (error) {
     return fail("notes GET", error, "Kon je notities niet ophalen.");
   }
 }
 
 export async function POST(request: Request) {
+  const denied = await requireAccess(request);
+  if (denied) return denied;
   try {
     const note = newNote(await request.json().catch(() => ({})));
+    // Opnieuw verstuurd met hetzelfde id: de bestaande notitie niet overschrijven.
+    const existing = await getNote(note.id);
+    if (existing) return NextResponse.json({ note: existing });
     await saveNote(note);
     return NextResponse.json({ note });
   } catch (error) {

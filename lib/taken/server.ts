@@ -3,8 +3,9 @@ import { OPEN_STATUSES } from "./config";
 import { addDays, amsterdamToday, isIsoDate } from "./dates";
 import { freeMinutesOn } from "./agenda-server";
 import { spawnNext } from "./repeat";
-import { DayContext, pickTop, rankTasks } from "./score";
-import { getDays, getTasks, saveDay } from "./store";
+import { DayContext, makePlan, pickTop, rankTasks } from "./score";
+import { getDays, getSettings, getTasks, mutateDay } from "./store";
+import { areasOf } from "./config";
 import type { DayPlan, Task } from "./types";
 
 export const noStore = { "Cache-Control": "no-store" };
@@ -23,11 +24,17 @@ export async function recentPlans(date: string) {
   return (await getDays(dates)).filter(Boolean) as DayPlan[];
 }
 
+const sameIds = (a: { id: string }[], b: { id: string }[]) => a.length === b.length && a.every((p, i) => p.id === b[i].id);
+
 /**
  * Houdt de top 3 bij: taken die weg zijn of naar wachten/ooit gingen vallen eruit,
  * lege plekken worden aangevuld zolang de dag niet is afgesloten. Afgevinkte taken blijven staan.
+ *
+ * - "achtergrond" (bij openen): alleen opslaan als het plan intussen niet elders is veranderd,
+ *   en dan alleen de top 3 bijwerken, zodat bijv. een gelijktijdige dagafsluiting blijft staan.
+ * - "actie" (wisselen, zelf kiezen): jouw keuze wint; velden van de afsluiting blijven behouden.
  */
-export async function syncPlan(plan: DayPlan, tasks?: Task[], ctx: DayContext = {}): Promise<DayPlan> {
+export async function syncPlan(plan: DayPlan, tasks?: Task[], ctx: DayContext = {}, mode: "achtergrond" | "actie" = "achtergrond"): Promise<DayPlan> {
   const all = tasks || (await getTasks());
   const byId = new Map(all.map((t) => [t.id, t]));
   const keep = plan.top3.filter((p) => {
@@ -37,6 +44,7 @@ export async function syncPlan(plan: DayPlan, tasks?: Task[], ctx: DayContext = 
   let top3 = keep;
   if (keep.length < 3 && !plan.closedAt) {
     const keptTasks = keep.map((p) => byId.get(p.id) as Task);
+    if (!ctx.areas) ctx = { ...ctx, areas: areasOf(await getSettings()) };
     const ranked = rankTasks(
       all,
       plan.date,
@@ -47,20 +55,40 @@ export async function syncPlan(plan: DayPlan, tasks?: Task[], ctx: DayContext = 
     const extra = pickTop(ranked, 3 - keep.length, keptTasks);
     top3 = [...keep, ...extra.map((s) => ({ id: s.task.id, reason: s.reason }))];
   }
-  const changed = top3.length !== plan.top3.length || top3.some((p, i) => p.id !== plan.top3[i]?.id);
-  const next: DayPlan = { ...plan, top3, areas: top3.map((p) => byId.get(p.id)?.areaId ?? null) };
-  if (changed) await saveDay(next);
-  return next;
+  const areas = top3.map((p) => byId.get(p.id)?.areaId ?? null);
+  const next: DayPlan = { ...plan, top3, areas };
+  if (mode === "achtergrond") {
+    if (sameIds(top3, plan.top3)) return next;
+    const result = await mutateDay(plan.date, (current) =>
+      current && sameIds(current.top3, plan.top3) && current.closedAt === plan.closedAt ? { ...current, top3, areas } : null
+    );
+    return result.changed ? (result.value as DayPlan) : result.value || next;
+  }
+  const result = await mutateDay(plan.date, (current) => ({ ...(current || plan), top3, areas, swapped: plan.swapped }));
+  return result.value as DayPlan;
+}
+
+/** De top 3 van een dag: bij de eerste keer openen gekozen en daarna vastgehouden. */
+export async function todayPlan(date: string, tasks?: Task[]): Promise<DayPlan> {
+  const all = tasks || (await getTasks());
+  const [existing] = await getDays([date]);
+  if (existing && (existing.top3.length >= 3 || existing.closedAt)) return syncPlan(existing, all);
+  const ctx = await dayContext(date, all);
+  if (existing) return syncPlan(existing, all, ctx);
+  const plan = makePlan(all, date, await recentPlans(date), ctx);
+  // Alleen als er intussen geen plan is ontstaan (bijv. op een ander apparaat): dan geldt dat plan.
+  return (await mutateDay(date, (current) => (current ? null : plan))).value || plan;
 }
 
 /** Vrije tijd van vandaag uit de agenda; mag nooit de top 3 blokkeren (max. 3 seconden). */
 export async function dayContext(date: string, tasks: Task[]): Promise<DayContext> {
+  const areas = areasOf(await getSettings());
   try {
     const timeout = new Promise<null>((resolve) => setTimeout(() => resolve(null), 3000));
-    return { freeMinutes: await Promise.race([freeMinutesOn(date, tasks), timeout]) };
+    return { freeMinutes: await Promise.race([freeMinutesOn(date, tasks), timeout]), areas };
   } catch (error) {
     console.error("taken agenda", error);
-    return {};
+    return { areas };
   }
 }
 

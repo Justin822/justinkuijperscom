@@ -1,4 +1,5 @@
 {
+  "id": "/app",
   "name": "Planner",
   "short_name": "Planner",
   "description": "Taken, agenda en notities op één plek. Elke dag een top 3.",
@@ -26,18 +27,36 @@
       "purpose": "maskable"
     }
   ],
+  "share_target": {
+    "action": "/app/delen",
+    "method": "GET",
+    "params": {
+      "title": "title",
+      "text": "text",
+      "url": "url"
+    }
+  },
   "shortcuts": [
     {
-      "name": "Taken",
-      "url": "/app/taken"
+      "name": "Nieuwe taak",
+      "short_name": "Nieuw",
+      "url": "/app?nieuw=1",
+      "icons": [{ "src": "/taken-pwa/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Inbox",
+      "url": "/app/taken?lijst=inbox",
+      "icons": [{ "src": "/taken-pwa/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Week",
+      "url": "/app/week",
+      "icons": [{ "src": "/taken-pwa/icon-192.png", "sizes": "192x192" }]
     },
     {
       "name": "Notities",
-      "url": "/app/notities"
-    },
-    {
-      "name": "Agenda",
-      "url": "/app/agenda"
+      "url": "/app/notities",
+      "icons": [{ "src": "/taken-pwa/icon-192.png", "sizes": "192x192" }]
     }
   ]
 }

@@ -1,4 +1,3 @@
-import { AREA_BY_ID } from "./config";
 import { isIsoDate } from "./dates";
 import type { AreaId, Impact, Note, Repeat, Source, Status, Task } from "./types";
 
@@ -6,7 +5,7 @@ import type { AreaId, Impact, Note, Repeat, Source, Status, Task } from "./types
 
 const STATUSES: Status[] = ["inbox", "gepland", "bezig", "wachten", "ooit", "af"];
 const IMPACTS: Impact[] = ["laag", "middel", "hoog"];
-const SOURCES: Source[] = ["handmatig", "spraak", "doorgestuurd", "mail-radar", "notitie"];
+const SOURCES: Source[] = ["handmatig", "spraak", "doorgestuurd", "mail-radar", "notitie", "snelknop", "gedeeld"];
 const UNITS: Repeat["unit"][] = ["dag", "week", "maand"];
 
 function cleanRepeat(value: any): Repeat | null {
@@ -23,8 +22,11 @@ const isBlock = (value: unknown): value is string =>
 
 /** Vult velden aan die oudere taken nog niet hadden. */
 export function normalizeTask(task: any): Task {
-  return { repeat: null, blockStart: null, focusMinutes: 0, googleEventId: null, googleSyncedAt: null, ...task };
+  return { repeat: null, spawnedFrom: null, blockStart: null, focusMinutes: 0, googleEventId: null, googleSyncedAt: null, ...task };
 }
+
+/** Een gebied-id ziet er zo uit; of het gebied (nog) bestaat, maakt niet uit (gearchiveerd kan ook). */
+const areaId = (value: unknown): AreaId | null => (typeof value === "string" && /^[a-z0-9][a-z0-9-]{0,39}$/.test(value) ? value : null);
 
 const text = (value: unknown, max: number) =>
   typeof value === "string" && value.trim() ? value.trim().slice(0, max) : null;
@@ -41,7 +43,7 @@ export function cleanPatch(input: any): Partial<Task> {
   const has = (key: string) => Object.prototype.hasOwnProperty.call(input, key);
 
   if (has("title") && text(input.title, 300)) patch.title = text(input.title, 300) as string;
-  if (has("areaId")) patch.areaId = input.areaId in AREA_BY_ID ? (input.areaId as AreaId) : null;
+  if (has("areaId")) patch.areaId = areaId(input.areaId);
   if (has("project")) patch.project = text(input.project, 80);
   if (has("deadline")) patch.deadline = isIsoDate(input.deadline) ? input.deadline : null;
   if (has("deadlineHard")) patch.deadlineHard = Boolean(input.deadlineHard);
@@ -77,7 +79,7 @@ export function newTask(input: any, now = Date.now()): Task | null {
   if (!patch.title) return null;
   return applyPatch(
     {
-      id: newId(now),
+      id: clientId(input?.id) || newId(now),
       title: patch.title,
       areaId: null,
       project: null,
@@ -94,6 +96,7 @@ export function newTask(input: any, now = Date.now()): Task | null {
       followUp: null,
       note: null,
       repeat: null,
+      spawnedFrom: null,
       blockStart: null,
       focusMinutes: 0,
       googleEventId: null,
@@ -109,17 +112,24 @@ export function newTask(input: any, now = Date.now()): Task | null {
 
 export const newId = (now = Date.now()) => `${now.toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 
+/**
+ * Een id dat de browser zelf heeft gemaakt (offline aangemaakt, later verstuurd), als het er geldig uitziet.
+ * Zo krijgt een taak overal hetzelfde id en wordt hij bij opnieuw versturen nooit dubbel.
+ */
+export const clientId = (value: unknown): string | null =>
+  typeof value === "string" && /^[0-9a-z]{6,12}-[0-9a-z]{3,8}$/.test(value) ? value : null;
+
 /** Alleen de geldige notitievelden. */
 export function cleanNote(input: any): Partial<Note> {
   const patch: Partial<Note> = {};
   if (!input || typeof input !== "object") return patch;
   const has = (key: string) => Object.prototype.hasOwnProperty.call(input, key);
   if (has("body") && typeof input.body === "string") patch.body = input.body.slice(0, 100000);
-  if (has("areaId")) patch.areaId = input.areaId in AREA_BY_ID ? (input.areaId as AreaId) : null;
+  if (has("areaId")) patch.areaId = areaId(input.areaId);
   if (has("pinned")) patch.pinned = Boolean(input.pinned);
   return patch;
 }
 
 export function newNote(input: any, now = Date.now()): Note {
-  return { id: newId(now), body: "", areaId: null, pinned: false, createdAt: now, updatedAt: now, ...cleanNote(input) };
+  return { id: clientId(input?.id) || newId(now), body: "", areaId: null, pinned: false, createdAt: now, updatedAt: now, ...cleanNote(input) };
 }

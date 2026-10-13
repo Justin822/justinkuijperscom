@@ -13,6 +13,32 @@ export const clearIcsCache = () => icsCache.clear();
 
 export const normalizeIcsUrl = (url: string) => url.trim().replace(/^webcal:\/\//i, "https://");
 
+/**
+ * Alleen publieke https-adressen: de server haalt deze link zelf op, dus geen localhost,
+ * interne netwerken of IP-adressen in privé-reeksen.
+ */
+export function isPublicHttpsUrl(url: string): boolean {
+  let u: URL;
+  try {
+    u = new URL(url);
+  } catch {
+    return false;
+  }
+  if (u.protocol !== "https:" || u.username || u.password) return false;
+  const host = u.hostname.toLowerCase().replace(/^\[|\]$/g, "");
+  if (host === "localhost" || host.endsWith(".localhost") || host.endsWith(".local") || host.endsWith(".internal") || !host.includes(".") && !host.includes(":")) return false;
+  const v4 = host.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
+  if (v4) {
+    const [a, b] = [Number(v4[1]), Number(v4[2])];
+    if (a === 10 || a === 127 || a === 0 || (a === 169 && b === 254) || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168) || (a === 100 && b >= 64 && b <= 127) || a >= 224) return false;
+  }
+  if (host.includes(":")) {
+    // IPv6: loopback, link-local, unique local en IPv4-mapped weigeren.
+    if (host === "::1" || host === "::" || /^(fe80|fc|fd)/.test(host) || host.startsWith("::ffff:")) return false;
+  }
+  return true;
+}
+
 async function loadIcs(source: Pick<IcsSource, "name" | "url">, fresh = false) {
   const hit = icsCache.get(source.url);
   if (!fresh && hit && Date.now() - hit.at < TTL) return hit.raws;

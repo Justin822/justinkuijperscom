@@ -1,8 +1,11 @@
-export type AreaId = "appel" | "felicio" | "cliq" | "side" | "prive";
+import type { Area } from "./config";
+
+/** Id van een gebied (zie lib/taken/config.ts voor de standaard; aan te passen in Instellingen). */
+export type AreaId = string;
 
 export type Status = "inbox" | "gepland" | "bezig" | "wachten" | "ooit" | "af";
 export type Impact = "laag" | "middel" | "hoog";
-export type Source = "handmatig" | "spraak" | "doorgestuurd" | "mail-radar" | "notitie";
+export type Source = "handmatig" | "spraak" | "doorgestuurd" | "mail-radar" | "notitie" | "snelknop" | "gedeeld";
 
 /** Herhaling: elke `every` dagen/weken/maanden, eventueel alleen op bepaalde weekdagen (0 = zondag). */
 export type Repeat = { every: number; unit: "dag" | "week" | "maand"; weekdays: number[] | null };
@@ -30,6 +33,8 @@ export type Task = {
   followUp: string | null;
   note: string | null;
   repeat: Repeat | null;
+  /** Bij een herhaling: de afgevinkte taak waaruit deze volgende keer is ontstaan. */
+  spawnedFrom: string | null;
   /** Timeblock in de agenda: "YYYY-MM-DDTHH:mm" (lokale tijd); duur = estimate. */
   blockStart: string | null;
   /** Minuten die je met de focus-timer aan deze taak hebt gewerkt. */
@@ -55,6 +60,8 @@ export type DayPlan = {
   closedAt: number | null;
   /** Aantal taken in de Inbox op het moment van afsluiten (voor de weekreview). */
   inboxAtClose?: number | null;
+  /** Taken die bij het afsluiten van deze dag al zijn doorgeschoven (nogmaals afsluiten telt ze niet dubbel). */
+  postponed?: string[];
 };
 
 export type Note = {
@@ -128,10 +135,39 @@ export type GoogleLink = {
   defaultCalendarId?: string | null;
 };
 
+/** Sleutel waarmee een snelknop of ander apparaat taken in je Inbox mag zetten (alleen de hash wordt bewaard). */
+export type CaptureToken = { id: string; name: string; hash: string; createdAt: number; lastUsedAt: number | null };
+
+/** Mail-radar: gelabelde mails in Gmail worden taken. */
+export type MailSettings = {
+  enabled: boolean;
+  /** Gmail-label-id's (worden aangemaakt als ze er nog niet zijn). */
+  labels: { taak: string; wachten: string; verwerkt: string } | null;
+  lastRunAt: number | null;
+  lastError: string | null;
+  lastCount: number;
+};
+
+/** Welke pushmeldingen je wilt (voor alle apparaten). */
+export type PushPrefs = {
+  /** 's Ochtends je top 3, plus deadlines en nabellen van vandaag. */
+  ochtend: boolean;
+  /** Herinnering om je dag af te sluiten, op `afsluitTijd`. */
+  afsluiten: boolean;
+  afsluitTijd: string;
+  /** Melding als je focus-timer klaar is, ook als de app dicht is. */
+  focus: boolean;
+};
+
 export type Settings = {
+  /** Je eigen gebieden (leeg of ontbrekend = de standaard uit lib/taken/config.ts). */
+  areas?: Area[];
   icsSources: IcsSource[];
   workday: { start: string; end: string };
   google: GoogleLink | null;
+  captureTokens?: CaptureToken[];
+  mail?: MailSettings;
+  push?: PushPrefs;
 };
 
 /** Wat de browser van de instellingen te zien krijgt: geen tokens, geen volledige links. */
@@ -149,4 +185,8 @@ export type PublicSettings = {
     canEdit: boolean;
     defaultCalendarId: string | null;
   };
+  captureTokens: { id: string; name: string; createdAt: number; lastUsedAt: number | null }[];
+  mail: { available: boolean; enabled: boolean; lastRunAt: number | null; lastError: string | null; lastCount: number };
+  push: PushPrefs & { configured: boolean; publicKey: string | null; scheduled: boolean; devices: number };
+  areas: Area[];
 };

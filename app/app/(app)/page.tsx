@@ -2,9 +2,9 @@
 
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { blockInterval, freeMinutes, type Interval } from "@/lib/taken/agenda";
-import { AREA_BY_ID, OPEN_STATUSES } from "@/lib/taken/config";
+import { OPEN_STATUSES } from "@/lib/taken/config";
 import { addDays, formatLong, formatRelative, isIsoDate, weekday } from "@/lib/taken/dates";
 import { autoSchedule, type Placement } from "@/lib/taken/plan";
 import { rankTasks } from "@/lib/taken/score";
@@ -16,7 +16,8 @@ import { CalendarIcon, ChevronLeftIcon, ChevronRightIcon, PlayIcon, SearchIcon }
 import { anchorOf, Menu, type Anchor } from "../_components/Popover";
 import QuickAdd from "../_components/QuickAdd";
 import { CheckButton, focusLabel } from "../_components/TaskRow";
-import { eventsOn, useAgenda, useTaken } from "../_components/TakenContext";
+import { eventsOn, useAgenda, useAreas, useTakenActions, useTakenData, useTakenUi } from "../_components/TakenContext";
+import { isPhone, readLocal, writeLocal } from "../_components/device";
 
 // Vandaag = dagplanner: links wat je gaat doen, rechts wanneer. Op mobiel wissel je tussen Lijst en Dag.
 
@@ -28,27 +29,14 @@ function greeting(hour: number) {
 }
 
 const VIEW_KEY = "tk-today-view";
-const isPhone = () => typeof window !== "undefined" && window.matchMedia("(max-width: 899px)").matches;
 
 export default function TodayPage() {
+  const { map: areaById, list: areaList } = useAreas();
   const params = useSearchParams();
   const router = useRouter();
-  const {
-    tasks,
-    loaded,
-    error,
-    today,
-    plan,
-    reloadPlan,
-    planAction,
-    openTask,
-    updateTask,
-    changeTask,
-    startFocus,
-    notify,
-    openPalette,
-    workday,
-  } = useTaken();
+  const { tasks, loaded, error, today, plan, reloadPlan, planAction, workday } = useTakenData();
+  const { openTask, updateTask, changeTask, notify, openPalette } = useTakenActions();
+  const { startFocus } = useTakenUi();
   const initial = params?.get("datum");
   const [date, setDate] = useState(isIsoDate(initial) ? (initial as string) : today);
   const [view, setView] = useState<"lijst" | "dag">("lijst");
@@ -60,21 +48,23 @@ export default function TodayPage() {
   const hour = new Date().getHours();
   const isToday = date === today;
 
+  // Over middernacht heen: wie naar vandaag keek, kijkt daarna naar de nieuwe dag.
+  const shownToday = useRef(today);
   useEffect(() => {
-    try {
-      const saved = localStorage.getItem(VIEW_KEY);
-      if (saved === "dag" || saved === "lijst") setView(saved);
-    } catch {
-      // geen opslag beschikbaar
-    }
+    if (shownToday.current === today) return;
+    setDate((d) => (d === shownToday.current ? today : d));
+    shownToday.current = today;
+  }, [today]);
+  /** De dag na de dag die je bekijkt, maar nooit eerder dan morgen. */
+  const nextDay = addDays(date > today ? date : today, 1);
+
+  useEffect(() => {
+    const saved = readLocal(VIEW_KEY);
+    if (saved === "dag" || saved === "lijst") setView(saved);
   }, []);
   const switchView = (v: "lijst" | "dag") => {
     setView(v);
-    try {
-      localStorage.setItem(VIEW_KEY, v);
-    } catch {
-      // geen opslag beschikbaar
-    }
+    writeLocal(VIEW_KEY, v);
   };
 
   useEffect(() => {
@@ -102,7 +92,7 @@ export default function TodayPage() {
   const plannedThatDay = isToday ? [] : tasks.filter((t) => t.planDate === date && OPEN_STATUSES.includes(t.status));
   const toPlan = useMemo(
     () =>
-      rankTasks(tasks, date, [], [...pickIds, ...(plan?.swapped || []), ...plannedThatDay.map((t) => t.id)])
+      rankTasks(tasks, date, [], [...pickIds, ...(plan?.swapped || []), ...plannedThatDay.map((t) => t.id)], { areas: areaList })
         .map((s) => s.task)
         .filter((t) => !t.blockStart?.startsWith(date)),
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -186,7 +176,7 @@ export default function TodayPage() {
   const placingTask = placing ? byId.get(placing) : null;
 
   const row = (task: Task, opts: { num?: number; reason?: string } = {}) => {
-    const area = task.areaId ? AREA_BY_ID[task.areaId] : null;
+    const area = task.areaId ? areaById[task.areaId] : null;
     const done = task.status === "af";
     const blockedToday = task.blockStart?.startsWith(date);
     return (
@@ -427,9 +417,13 @@ export default function TodayPage() {
                   ...(menu.reason ? [{ label: "Waarom deze?", hint: "", onSelect: () => notify(menu.reason as string) }] : []),
                   { label: "Inplannen", onSelect: () => schedule(menu.task as Task) },
                   {
-                    label: "Naar morgen",
+                    label: date > today ? "Naar de dag erna" : "Naar morgen",
                     onSelect: () =>
-                      changeTask((menu.task as Task).id, { planDate: addDays(today, 1), blockStart: null }, "Naar morgen verplaatst"),
+                      changeTask(
+                        (menu.task as Task).id,
+                        { planDate: nextDay, blockStart: null },
+                        `Verplaatst naar ${formatRelative(nextDay, today)}`
+                      ),
                   },
                   ...(pickIds.includes(menu.task.id) && !plan?.closedAt
                     ? [{ label: "Wissel uit top 3", onSelect: () => planAction("swap", (menu.task as Task).id) }]

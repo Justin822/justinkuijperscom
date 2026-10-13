@@ -3,26 +3,29 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { AREAS } from "@/lib/taken/config";
-import { markConverted, noteRest, taskLines } from "@/lib/taken/notes";
+import { bodyHash, markConverted, noteRest, taskLines } from "@/lib/taken/notes";
 import { parseTask } from "@/lib/taken/parse";
-import type { Task } from "@/lib/taken/types";
+import type { Note, Task } from "@/lib/taken/types";
+import AreaPills from "../../../_components/AreaPills";
 import { ChevronLeftIcon, PinIcon, TrashIcon } from "../../../_components/icons";
-import { useTaken } from "../../../_components/TakenContext";
+import { ApiError, useAreas, useTakenActions, useTakenData } from "../../../_components/TakenContext";
 
 // Notitie-editor: titel + tekst, slaat vanzelf op. "[ ] iets" wordt met één knop een taak.
 
 const LIST_PREFIX = /^(\s*)(- \[[ x→]\] |\[[ x→]\] |[-*•] |(\d+)\. )(.*)$/;
 
 export default function NotePage({ params }: { params: { id: string } }) {
+  const { list: areaList } = useAreas();
   const router = useRouter();
-  const { notes, loaded, updateNote, removeNote, createNote, addTasks, notify, today } = useTaken();
+  const { notes, loaded, today } = useTakenData();
+  const { updateNote, removeNote, createNote, addTasks, notify } = useTakenActions();
   const note = notes.find((n) => n.id === params.id);
   const [title, setTitle] = useState("");
   const [rest, setRest] = useState("");
   const [status, setStatus] = useState<"" | "bezig" | "opgeslagen" | "fout">("");
   const ready = useRef(false);
   const lastSaved = useRef<string>("");
+
   const bodyRef = useRef<HTMLTextAreaElement>(null);
   const titleRef = useRef<HTMLInputElement>(null);
   const pendingCursor = useRef<number | null>(null);
@@ -39,19 +42,39 @@ export default function NotePage({ params }: { params: { id: string } }) {
 
   const body = rest ? `${title}\n${rest}` : title;
 
-  const save = useCallback(
+  // Opslaan één voor één: een tweede opslag wacht tot de eerste klaar is, zodat hij op de juiste versie voortbouwt.
+  const queue = useRef<Promise<void>>(Promise.resolve());
+  const saveNow = useCallback(
     async (value: string) => {
       if (value === lastSaved.current) return;
       setStatus("bezig");
       try {
-        await updateNote(params.id, { body: value });
+        // De server weigert als de tekst waarop je verder typte (lastSaved) intussen elders is veranderd.
+        await updateNote(params.id, { body: value }, bodyHash(lastSaved.current));
         lastSaved.current = value;
         setStatus("opgeslagen");
-      } catch {
-        setStatus("fout");
+      } catch (err) {
+        if (err instanceof ApiError && err.status === 409 && err.data?.note) {
+          // Elders gewijzigd: niets overschrijven. Jouw versie wordt een kopie, de editor toont de nieuwe versie.
+          const fresh = err.data.note as Note;
+          const [first, ...more] = value.split("\n");
+          await createNote({ body: [`${first || "Notitie"} (jouw versie)`, ...more].join("\n"), areaId: fresh.areaId }).catch(() => {});
+          lastSaved.current = fresh.body;
+          setTitle(fresh.body.split("\n")[0]);
+          setRest(noteRest(fresh.body));
+          setStatus("opgeslagen");
+          notify("Deze notitie was op een ander apparaat gewijzigd. Jouw versie staat in een kopie.");
+        } else setStatus("fout");
       }
     },
-    [params.id, updateNote]
+    [params.id, updateNote, createNote, notify]
+  );
+  const save = useCallback(
+    (value: string) => {
+      queue.current = queue.current.then(() => saveNow(value));
+      return queue.current;
+    },
+    [saveNow]
   );
 
   // Automatisch opslaan, 600 ms na het laatste typen.
@@ -116,7 +139,7 @@ export default function NotePage({ params }: { params: { id: string } }) {
   const convert = async () => {
     try {
       const inputs = open.map((line) => {
-        const { chips, ...fields } = parseTask(line, today);
+        const { chips, ...fields } = parseTask(line, today, areaList);
         return { ...fields, areaId: fields.areaId || note?.areaId || null, source: "notitie", note: `Uit notitie: ${title || "zonder titel"}` } as Partial<Task>;
       });
       const created = await addTasks(inputs);
@@ -189,21 +212,7 @@ export default function NotePage({ params }: { params: { id: string } }) {
         aria-label="Titel"
       />
 
-      <div className="tk-pills mt-3 mb-4">
-        {AREAS.map((a) => (
-          <button
-            key={a.id}
-            type="button"
-            className="tk-pill"
-            style={{ height: 24, fontSize: 12 }}
-            aria-pressed={note.areaId === a.id}
-            onClick={() => updateNote(note.id, { areaId: note.areaId === a.id ? null : a.id })}
-          >
-            <span className="tk-dot" style={{ background: a.color }} />
-            {a.short}
-          </button>
-        ))}
-      </div>
+      <AreaPills className="mt-3 mb-4" small value={note.areaId} onChange={(areaId) => updateNote(note.id, { areaId })} toggle />
 
       {open.length > 0 && (
         <div className="tk-banner is-soft mb-4">

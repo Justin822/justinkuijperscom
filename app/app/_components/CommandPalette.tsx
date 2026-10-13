@@ -8,7 +8,9 @@ import { parseTask, splitEntries } from "@/lib/taken/parse";
 import type { Task } from "@/lib/taken/types";
 import { NoteIcon, PlayIcon, PlusIcon, SearchIcon } from "./icons";
 import { EXTRA, NAV } from "./nav";
-import { useTaken } from "./TakenContext";
+import { useAreas, useTakenActions, useTakenData, useTakenUi } from "./TakenContext";
+import { searchable } from "@/lib/taken/text";
+import { useFocusTrap } from "./useFocusTrap";
 
 // ⌘K: zoeken in taken en notities, iets toevoegen of naar een scherm gaan.
 
@@ -21,15 +23,19 @@ type Item = {
   run: () => void;
 };
 
-const norm = (s: string) => s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
 
 export default function CommandPalette() {
+  const { list: areas } = useAreas();
   const router = useRouter();
-  const { palette, openPalette, tasks, notes, addTasks, createNote, openTask, startFocus, today, notify, plan } = useTaken();
+  const { tasks, notes, today, plan } = useTakenData();
+  const { openPalette, addTasks, createNote, openTask, notify } = useTakenActions();
+  const { palette, startFocus } = useTakenUi();
   const [query, setQuery] = useState("");
   const [index, setIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useFocusTrap(dialogRef);
   const adding = palette === "add";
 
   useEffect(() => inputRef.current?.focus(), []);
@@ -43,9 +49,9 @@ export default function CommandPalette() {
   };
 
   const items = useMemo<Item[]>(() => {
-    const q = norm(query.trim());
+    const q = searchable(query.trim());
     const list: Item[] = [];
-    const entries = query.trim() ? splitEntries(query).map((e) => parseTask(e, today)).filter((p) => p.title) : [];
+    const entries = query.trim() ? splitEntries(query).map((e) => parseTask(e, today, areas)).filter((p) => p.title) : [];
 
     if (entries.length && (adding || q)) {
       list.push({
@@ -63,7 +69,7 @@ export default function CommandPalette() {
     if (adding) return list;
 
     if (q) {
-      const match = (s: string | null | undefined) => Boolean(s && norm(s).includes(q));
+      const match = (s: string | null | undefined) => Boolean(s && searchable(s).includes(q));
       tasks
         .filter((t) => match(t.title) || match(t.project) || match(t.note) || match(t.waitingOn))
         .sort((a, b) => Number(a.status === "af") - Number(b.status === "af") || b.updatedAt - a.updatedAt)
@@ -136,7 +142,7 @@ export default function CommandPalette() {
         run: () => router.push(href),
       })),
     ];
-    list.push(...commands.filter((c) => !q || norm(c.label).includes(q)));
+    list.push(...commands.filter((c) => !q || searchable(c.label).includes(q)));
     return list;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [query, adding, tasks, notes, today, plan]);
@@ -155,7 +161,7 @@ export default function CommandPalette() {
   let lastGroup = "";
   return (
     <div className="tk-overlay is-top" onClick={close}>
-      <div className="tk-palette" role="dialog" aria-label="Zoeken" onClick={(e) => e.stopPropagation()}>
+      <div ref={dialogRef} className="tk-palette" role="dialog" aria-modal="true" aria-label="Zoeken" onClick={(e) => e.stopPropagation()}>
         <div className="tk-palette-input">
           {adding ? <PlusIcon /> : <SearchIcon />}
           <input

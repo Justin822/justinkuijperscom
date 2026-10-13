@@ -1,41 +1,29 @@
-This is a [Next.js](https://nextjs.org/) project bootstrapped with [`create-next-app`](https://github.com/vercel/next.js/tree/canary/packages/create-next-app).
+# justinkuijpers.com
 
-## Getting Started
+Persoonlijke site (Next.js App Router, Contentlayer voor de blog) met twee apps:
 
-First, run the development server:
+- **Planner** op `/app`: taken, agenda en notities (zie hieronder)
+- **Ranking the Stars** op `/rankingthestars`: teamspel
+
+## Lokaal draaien
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
+npm install
+cp .env.example .env.local   # alles mag leeg blijven voor lokaal gebruik
+npm run dev                  # http://localhost:3000
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Controles
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+| Commando | Wat |
+| --- | --- |
+| `npm run typecheck` | TypeScript |
+| `npm run lint` | ESLint |
+| `npm test` | unit-tests (Vitest, `tests/unit`) |
+| `npm run test:e2e` | end-to-end-tests van de Planner (Playwright, `tests/e2e`); bouw eerst met `npm run build` |
+| `npm run build` | productie-build; faalt bij type- of lintfouten |
 
-[API routes](https://nextjs.org/docs/api-routes/introduction) can be accessed on [http://localhost:3000/api/hello](http://localhost:3000/api/hello). This endpoint can be edited in `pages/api/hello.ts`.
-
-The `pages/api` directory is mapped to `/api/*`. Files in this directory are treated as [API routes](https://nextjs.org/docs/api-routes/introduction) instead of React pages.
-
-This project uses [`next/font`](https://nextjs.org/docs/basic-features/font-optimization) to automatically optimize and load Inter, a custom Google Font.
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js/) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/deployment) for more details.
+GitHub Actions draait dit allemaal bij elke pull request (`.github/workflows/ci.yml`).
 
 ## Ranking the Stars (teamspel)
 
@@ -104,9 +92,47 @@ Typ een gewone zin, bijv. `Offerte Jansen vrijdag, Appèl, half uur`. De parser 
 
 Bij een terugkerende taak staat de volgende keer klaar zodra je hem afvinkt. Meerdere taken tegelijk kan met een nieuwe regel, `;` of "en daarnaast". De microfoonknop gebruikt de spraakherkenning van je browser.
 
+### Snel invoeren van buiten de app
+
+**Deelmenu (Android):** installeer de Planner via Chrome (menu → App installeren). Daarna staat Planner in het deelmenu van elke app: je ziet wat er herkend is en zet het met één tik in je Inbox. Lang drukken op het app-icoon geeft snelkoppelingen: Nieuwe taak, Inbox, Week en Notities.
+
+**Zonder de app te openen:** met een sleutel uit **Instellingen → Snel invoeren** en de Android-app **HTTP Shortcuts**. Na het aanmaken van een sleutel download je een importbestand met twee snelknoppen: *Zet in Planner* (typen of inspreken; ook als tegel in je snelle instellingen en in het deelmenu) en *Mijn top 3*.
+
+- `POST /api/taken/capture` met header `Authorization: Bearer <sleutel>`
+  - body als platte tekst, formulier of JSON: `{ "text": "...", "title": "...", "url": "...", "note": "...", "source": "gedeeld" }`
+  - de tekst gaat door dezelfde parser als het invoerveld; meerdere regels worden meerdere taken; een gedeelde link komt in de notitie
+  - begint de tekst met `notitie:`, dan wordt het een notitie
+- `GET /api/taken/capture/today`: je top 3 van vandaag
+- met `?format=text` krijg je één regel tekst terug (handig als melding)
+
+Elk apparaat krijgt een eigen sleutel; alleen een hash wordt bewaard en intrekken kan in Instellingen.
+
+### Mail-radar (Gmail)
+
+Geef een mail in Gmail het label **Planner** en hij staat als taak in je Inbox, met een link terug naar de mail. Het onderwerp gaat door dezelfde parser als het invoerveld, dus `Offerte vrijdag, Appèl` krijgt meteen een deadline en gebied. Een mail met ster krijgt hoge impact. **Planner/Wachten** (voor een mail die je zelf stuurde) wordt "wachten op" de ontvanger, nabellen over 3 dagen. Daarna krijgt de mail het label **Planner/Verwerkt**; de labels maakt de app zelf aan.
+
+Aanzetten: **Instellingen → Mail-radar → Mail-radar aanzetten**. Google vraagt dan één keer om het extra recht `gmail.modify`. Eenmalig in Google Cloud Console: APIs en services → Bibliotheek → **Gmail API** inschakelen, en het recht toevoegen aan het OAuth-toestemmingsscherm.
+
+De app kijkt als je hem opent (hooguit eens per 2 minuten) en elke ochtend vroeg via Vercel Cron (`vercel.json`), als `CRON_SECRET` is ingesteld. Vaker op de achtergrond kan met een externe planner (bijv. Upstash QStash) die `GET /api/taken/cron` aanroept met `Authorization: Bearer <CRON_SECRET>`.
+
+### Pushmeldingen
+
+Op Android (Chrome, app geïnstalleerd) krijg je meldingen, ook als de app dicht is. Aanzetten per apparaat in **Instellingen → Meldingen**.
+
+- **'s Ochtends**: je top 3, plus per taak een melding voor deadlines en nabellen van vandaag. Bij een deadline kun je in de melding meteen **Afvinken** of **Naar morgen**.
+- **Dag afsluiten**: een herinnering op de tijd die je kiest (staat de dag al afgesloten, dan niet).
+- **Focus klaar**: als je focus-timer afloopt.
+
+Instellen:
+1. `npx web-push generate-vapid-keys` en zet de twee sleutels in Vercel als `VAPID_PUBLIC_KEY` en `VAPID_PRIVATE_KEY` (plus `VAPID_SUBJECT`, bijv. `mailto:jij@example.com`).
+2. `CRON_SECRET`: de dagelijkse ronde (`vercel.json`, 05:45 UTC) stuurt de ochtendmelding en draait de mail-radar.
+3. Optioneel `QSTASH_TOKEN` (Upstash QStash, gratis tier, zelfde account als Redis): nodig voor meldingen op een vast tijdstip (afsluiten, einde focus). De app plant die dan zelf in.
+
 ### Setup op Vercel
 
 1. `TAKEN_PASSWORD`: wachtwoord voor de app. Lokaal is het `taken`.
+   - `TAKEN_SECRET` (aanbevolen): een lange willekeurige tekst, bijv. uit `openssl rand -base64 32`. Daarmee worden sessies ondertekend en staat het Google-token versleuteld in de database. Zonder deze variabele worden sessies met het wachtwoord ondertekend en blijft het token onversleuteld.
+   - Elk apparaat krijgt bij inloggen een eigen sessie (180 dagen). In **Instellingen → Apparaten** zie je waar je bent ingelogd en log je één of alle andere apparaten uit. Na tien foute wachtwoorden vanaf één adres moet je een kwartier wachten.
 2. Opslag gebruikt dezelfde Upstash Redis als Ranking the Stars (`KV_REST_API_URL`/`_TOKEN`, gratis tier). Zonder Redis gaat alles in een tijdelijk bestand dat op Vercel niet bewaard blijft.
 3. Agenda's koppel je in de app zelf: **Instellingen** (zijbalk, of het tandwiel in Week).
    - **Outlook**: plak de ICS-link. In Outlook op het web vind je die via Instellingen → Agenda → Gedeelde agenda's → "Een agenda publiceren" → "Kan alle details bekijken" → ICS-link. Ontbreekt die optie bij Appèl, dan heeft IT publiceren uitgezet.
@@ -134,4 +160,4 @@ Koppelde je Google al vóór afspraken bewerken bestond? Dan vraagt de app één
 
 Ontkoppelen kan in Instellingen; de agenda Planner blijft dan in Google staan.
 
-Gebieden en hun trefwoorden pas je aan in `lib/taken/config.ts`. Je werkdag (voor "vrije tijd" en de top 3) stel je in bij Instellingen.
+Gebieden (naam, kleur, trefwoorden, volgorde, archiveren) pas je aan in **Instellingen → Gebieden**; de standaardlijst staat in `lib/taken/config.ts`. Je werkdag (voor "vrije tijd" en de top 3) stel je in bij Instellingen.

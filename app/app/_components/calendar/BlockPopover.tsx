@@ -1,12 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { AREA_BY_ID } from "@/lib/taken/config";
+
 import { formatRelative } from "@/lib/taken/dates";
 import type { CalendarEvent, Task } from "@/lib/taken/types";
 import { CheckIcon, PlayIcon, TrashIcon } from "../icons";
 import Popover, { type Anchor } from "../Popover";
-import { useTaken } from "../TakenContext";
+import { useAreas, useTakenActions, useTakenData, useTakenUi } from "../TakenContext";
 import { blockStartOf, durationLabel, fmt, localParts, toMinutes } from "./time";
 import { movable, useEvents } from "./useEvents";
 
@@ -87,12 +87,15 @@ export function GuestConfirm({
 }
 
 function TaskContent({ taskId, onClose }: { taskId: string; onClose: () => void }) {
-  const { tasks, today, changeTask, updateTask, removeTask, addTasks, notify, openTask, startFocus } = useTaken();
+  const { map: areaById } = useAreas();
+  const { tasks, today } = useTakenData();
+  const { changeTask, updateTask, removeTask, addTasks, notify, openTask } = useTakenActions();
+  const { startFocus } = useTakenUi();
   const task = tasks.find((t) => t.id === taskId);
   const [title, setTitle] = useState(task?.title || "");
   if (!task) return null;
   const done = task.status === "af";
-  const area = task.areaId ? AREA_BY_ID[task.areaId] : null;
+  const area = task.areaId ? areaById[task.areaId] : null;
   const start = task.blockStart ? toMinutes(task.blockStart.slice(11, 16)) : null;
   const dur = task.estimate || 30;
 
@@ -221,7 +224,8 @@ function EventContent({
   onEventTime,
   onEventDelete,
 }: { event: CalendarEvent; day: string; onClose: () => void } & EventHandlers) {
-  const { addTasks, notify, today, settings } = useTaken();
+  const { today, settings } = useTakenData();
+  const { addTasks, notify } = useTakenActions();
   const { update } = useEvents();
   const [title, setTitle] = useState(event.title);
   const s = localParts(event.start);

@@ -1,12 +1,18 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { clearOffline } from "../_components/offline";
 
 // Inlogscherm. Na inloggen blijft de app 180 dagen open op dit apparaat.
 export default function AccessPage() {
   const [pw, setPw] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+
+  // Uitgelogd of verlopen: geen gegevens op dit apparaat laten staan.
+  useEffect(() => {
+    clearOffline();
+  }, []);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();

@@ -2,15 +2,17 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { AREAS, OPEN_STATUSES } from "@/lib/taken/config";
-import { addDays, formatRelative, MONTHS, weekday } from "@/lib/taken/dates";
+import { OPEN_STATUSES } from "@/lib/taken/config";
+import { addDays, formatRelative, isoWeek, MONTHS, weekday } from "@/lib/taken/dates";
 import { rankTasks } from "@/lib/taken/score";
 import type { AreaId, Task } from "@/lib/taken/types";
+import AreaPills from "../../_components/AreaPills";
 import CalendarGrid from "../../_components/calendar/CalendarGrid";
 import { useDragSource } from "../../_components/calendar/DragLayer";
 import { durationLabel } from "../../_components/calendar/time";
 import { ChevronLeftIcon, ChevronRightIcon, GearIcon } from "../../_components/icons";
-import { useAgenda, useTaken } from "../../_components/TakenContext";
+import { useAgenda, useAreas, useTakenActions, useTakenData } from "../../_components/TakenContext";
+import { isPhone, readLocal, writeLocal } from "../../_components/device";
 
 // Week: je afspraken en timeblocks over meerdere dagen. Sleep taken uit de lade de week in.
 
@@ -18,52 +20,33 @@ type Span = 1 | 3 | 5 | 7;
 const SPAN_KEY = "tk-week-span";
 const RECONNECT_KEY = "tk-hide-reconnect";
 
-/** ISO-weeknummer. */
-function weekNumber(date: string) {
-  const monday = addDays(date, -((weekday(date) + 6) % 7));
-  const thursday = addDays(monday, 3);
-  const jan4 = `${thursday.slice(0, 4)}-01-04`;
-  const firstMonday = addDays(jan4, -((weekday(jan4) + 6) % 7));
-  return Math.floor((Date.parse(thursday) - Date.parse(firstMonday)) / (7 * 86400000)) + 1;
-}
 
 export default function WeekPage() {
+  const { map: areaById, list: areaList } = useAreas();
   const router = useRouter();
-  const { tasks, today, openTask, settings } = useTaken();
+  const { tasks, today, settings } = useTakenData();
+  const { openTask } = useTakenActions();
   const [anchor, setAnchor] = useState(today);
   const [span, setSpan] = useState<Span>(7);
   const [tray, setTray] = useState(true);
   const [area, setArea] = useState<AreaId | null>(null);
   const [hideReconnect, setHideReconnect] = useState(true);
   useEffect(() => {
-    try {
-      setHideReconnect(localStorage.getItem(RECONNECT_KEY) === "1");
-    } catch {
-      setHideReconnect(false);
-    }
+    setHideReconnect(readLocal(RECONNECT_KEY) === "1");
   }, []);
   const askReconnect = Boolean(settings?.google.connected && !settings.google.needsReconnect && !settings.google.canEdit && !hideReconnect);
   const dragSource = useDragSource();
-  const phone = typeof window !== "undefined" && window.matchMedia("(max-width: 899px)").matches;
+  const phone = isPhone();
 
   useEffect(() => {
-    let saved: Span | null = null;
-    try {
-      saved = Number(localStorage.getItem(SPAN_KEY)) as Span;
-    } catch {
-      // geen opslag beschikbaar
-    }
+    const saved = Number(readLocal(SPAN_KEY)) as Span;
     if (phone) setSpan(saved === 1 ? 1 : 3);
     else setSpan(saved === 5 ? 5 : 7);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   const chooseSpan = (s: Span) => {
     setSpan(s);
-    try {
-      localStorage.setItem(SPAN_KEY, String(s));
-    } catch {
-      // geen opslag beschikbaar
-    }
+    writeLocal(SPAN_KEY, String(s));
   };
 
   // Week (5/7) begint op maandag; 1 en 3 dagen beginnen bij het gekozen anker.
@@ -74,10 +57,10 @@ export default function WeekPage() {
 
   const toPlan = useMemo(
     () =>
-      rankTasks(tasks, today, [])
+      rankTasks(tasks, today, [], [], { areas: areaList })
         .map((s) => s.task)
         .filter((t) => !t.blockStart && (!area || t.areaId === area)),
-    [tasks, today, area]
+    [tasks, today, area, areaList]
   );
 
   // Vegen op de kop: vorige/volgende.
@@ -91,7 +74,7 @@ export default function WeekPage() {
       <header className="mb-3 flex flex-wrap items-end justify-between gap-3">
         <div>
           <div className="tk-eyebrow first-letter:uppercase">{monthLabel}</div>
-          <h1 className="tk-h1">Week {weekNumber(days[0])}</h1>
+          <h1 className="tk-h1">Week {isoWeek(days[0])}</h1>
         </div>
         <div className="flex flex-wrap items-center gap-1">
           <div className="tk-seg tk-desktop-only">
@@ -144,11 +127,7 @@ export default function WeekPage() {
             className="tk-btn tk-btn-quiet tk-btn-sm"
             onClick={() => {
               setHideReconnect(true);
-              try {
-                localStorage.setItem(RECONNECT_KEY, "1");
-              } catch {
-                // geen opslag beschikbaar
-              }
+              writeLocal(RECONNECT_KEY, "1");
             }}
           >
             Later
@@ -171,24 +150,7 @@ export default function WeekPage() {
           </div>
           {tray && (
             <>
-              <div className="tk-pills mt-2" style={{ gap: 4 }}>
-                <button type="button" className="tk-pill" style={{ height: 24, fontSize: 12 }} aria-pressed={!area} onClick={() => setArea(null)}>
-                  Alles
-                </button>
-                {AREAS.map((a) => (
-                  <button
-                    key={a.id}
-                    type="button"
-                    className="tk-pill"
-                    style={{ height: 24, fontSize: 12 }}
-                    aria-pressed={area === a.id}
-                    onClick={() => setArea(area === a.id ? null : a.id)}
-                  >
-                    <span className="tk-dot" style={{ background: a.color }} />
-                    {a.short}
-                  </button>
-                ))}
-              </div>
+              <AreaPills className="mt-2" small value={area} onChange={setArea} toggle all />
               <p className="tk-faint mt-2 text-xs">Sleep een taak naar een dag en tijd.</p>
               <div className="mt-1">
                 {toPlan.length === 0 && <div className="tk-empty">Alles staat ingepland.</div>}
@@ -205,7 +167,7 @@ export default function WeekPage() {
                       </div>
                       <div className="tk-meta">
                         <span>{durationLabel(t.estimate || 30)}</span>
-                        {t.areaId && <span>{AREAS.find((a) => a.id === t.areaId)?.short}</span>}
+                        {t.areaId && <span>{areaById[t.areaId]?.short}</span>}
                         {OPEN_STATUSES.includes(t.status) && t.planDate && <span>{formatRelative(t.planDate, today)}</span>}
                       </div>
                     </div>

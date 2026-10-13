@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { isNarrow } from "./device";
+import { useFocusTrap } from "./useFocusTrap";
 
 // Klein venster naast iets wat je aanklikt; op een telefoon als sheet van onderen.
 // Sluit met Esc of een tik ernaast.
@@ -12,7 +14,6 @@ export const anchorOf = (el: Element): Anchor => {
   return { left: r.left, top: r.top, right: r.right, bottom: r.bottom };
 };
 
-export const isPhone = () => typeof window !== "undefined" && window.matchMedia("(max-width: 639px)").matches;
 
 export default function Popover({
   anchor,
@@ -28,8 +29,9 @@ export default function Popover({
   label?: string;
 }) {
   const ref = useRef<HTMLDivElement>(null);
+  useFocusTrap(ref);
   const [pos, setPos] = useState<{ left: number; top: number } | null>(null);
-  const [phone] = useState(isPhone);
+  const [phone] = useState(isNarrow);
 
   useLayoutEffect(() => {
     if (phone || !ref.current) return;

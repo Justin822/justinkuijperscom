@@ -1,4 +1,4 @@
-import { AREAS, OPEN_STATUSES } from "./config";
+import { DEFAULT_AREAS, OPEN_STATUSES, type Area } from "./config";
 import { localToday, weekday } from "./dates";
 import type { AreaId, DayPlan, Task } from "./types";
 
@@ -24,7 +24,15 @@ export type AreaReview = {
   postponed: number;
 };
 
-export function computeReview(dates: string[], plans: (DayPlan | null)[], tasks: Task[], dayOf = localToday) {
+export function computeReview(
+  dates: string[],
+  plans: (DayPlan | null)[],
+  tasks: Task[],
+  dayOf: (ms: number) => string = localToday,
+  /** Focusminuten per dag en per gebied ("geen" = zonder gebied), uit de focuslog. */
+  focus: Record<string, number>[] = [],
+  areaList: Area[] = DEFAULT_AREAS
+) {
   const byId = new Map(tasks.map((t) => [t.id, t]));
   const inWeek = (ms: number | null) => Boolean(ms && dates.includes(dayOf(ms)));
 
@@ -54,14 +62,14 @@ export function computeReview(dates: string[], plans: (DayPlan | null)[], tasks:
     name,
     color,
     done: done.filter((t) => t.areaId === areaId).length,
-    // Focusminuten van taken die deze week af zijn of nog open staan.
-    focusMinutes: [...done, ...open].filter((t) => t.areaId === areaId).reduce((sum, t) => sum + (t.focusMinutes || 0), 0),
+    // Alleen de minuten die deze week gewerkt zijn.
+    focusMinutes: focus.reduce((sum, day) => sum + (day[areaId || "geen"] || 0), 0),
     open: open.filter((t) => t.areaId === areaId).length,
     postponed: open.filter((t) => t.areaId === areaId && t.postponed > 0).length,
   });
 
   const areas = [
-    ...AREAS.map((a) => areaRow(a.id, a.name, a.color)),
+    ...areaList.map((a) => areaRow(a.id, a.name, a.color)),
     areaRow(null, "Zonder gebied", "var(--faint)"),
   ].filter((a) => a.done || a.open || a.focusMinutes);
 

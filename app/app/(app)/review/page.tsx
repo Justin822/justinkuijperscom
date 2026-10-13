@@ -2,23 +2,18 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
-import { addDays, formatRelative, MONTHS, weekday, WEEKDAYS_SHORT } from "@/lib/taken/dates";
+import { addDays, formatRelative, isoWeek, MONTHS, weekday, WEEKDAYS_SHORT } from "@/lib/taken/dates";
 import { computeReview } from "@/lib/taken/review";
 import type { DayPlan } from "@/lib/taken/types";
 import { ChevronLeftIcon, ChevronRightIcon } from "../../_components/icons";
 import PageHeader from "../../_components/PageHeader";
 import { focusLabel } from "../../_components/TaskRow";
-import { api, useTaken } from "../../_components/TakenContext";
+import { api, useAreas, useTakenActions, useTakenData } from "../../_components/TakenContext";
 
 // Weekreview: de succescriteria uit je plan, per gebied wat er gebeurd is, en je focus voor volgende week.
 
-/** ISO-weeknummer. */
-function weekNumber(monday: string) {
-  const thursday = addDays(monday, 3);
-  const jan4 = `${thursday.slice(0, 4)}-01-04`;
-  const firstMonday = addDays(jan4, -((weekday(jan4) + 6) % 7));
-  return Math.floor((Date.parse(thursday) - Date.parse(firstMonday)) / (7 * 86400000)) + 1;
-}
+type ReviewData = { dates: string[]; plans: (DayPlan | null)[]; focus: Record<string, number>[] };
+
 
 function Stat({ value, total, label }: { value: React.ReactNode; total?: number; label: string }) {
   return (
@@ -33,17 +28,19 @@ function Stat({ value, total, label }: { value: React.ReactNode; total?: number;
 }
 
 export default function ReviewPage() {
+  const { list: areaList } = useAreas();
   const router = useRouter();
-  const { tasks, today, createNote, notify, openTask } = useTaken();
+  const { tasks, today } = useTakenData();
+  const { createNote, notify, openTask } = useTakenActions();
   const thisMonday = addDays(today, -((weekday(today) + 6) % 7));
   const [monday, setMonday] = useState(thisMonday);
-  const [data, setData] = useState<{ dates: string[]; plans: (DayPlan | null)[] } | null>(null);
+  const [data, setData] = useState<ReviewData | null>(null);
   const [focusText, setFocusText] = useState("");
 
   useEffect(() => {
     let cancelled = false;
     setData(null);
-    api<{ dates: string[]; plans: (DayPlan | null)[] }>(`/api/taken/review?from=${monday}`)
+    api<ReviewData>(`/api/taken/review?from=${monday}`)
       .then((d) => !cancelled && setData(d))
       .catch((err) => notify(err.message));
     return () => {
@@ -51,8 +48,8 @@ export default function ReviewPage() {
     };
   }, [monday, notify]);
 
-  const review = useMemo(() => (data ? computeReview(data.dates, data.plans, tasks) : null), [data, tasks]);
-  const week = weekNumber(monday);
+  const review = useMemo(() => (data ? computeReview(data.dates, data.plans, tasks, undefined, data.focus, areaList) : null), [data, tasks, areaList]);
+  const week = isoWeek(monday);
   const sunday = addDays(monday, 6);
   const range = `${Number(monday.slice(8))} ${MONTHS[Number(monday.slice(5, 7)) - 1].slice(0, 3)} – ${Number(sunday.slice(8))} ${MONTHS[Number(sunday.slice(5, 7)) - 1].slice(0, 3)}`;
   const workdaysSoFar = Array.from({ length: 5 }, (_, i) => addDays(monday, i)).filter((d) => d <= today).length;
@@ -69,10 +66,14 @@ export default function ReviewPage() {
       "Focus volgende week",
       focusText.trim(),
     ];
-    const note = await createNote({ body: lines.join("\n") });
-    setFocusText("");
-    notify("Opgeslagen als notitie");
-    router.push(`/app/notities/${note.id}`);
+    try {
+      const note = await createNote({ body: lines.join("\n") });
+      setFocusText("");
+      notify("Opgeslagen als notitie");
+      router.push(`/app/notities/${note.id}`);
+    } catch (err: any) {
+      notify(err.message);
+    }
   };
 
   return (

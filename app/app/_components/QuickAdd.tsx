@@ -1,23 +1,25 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { parseTask, splitEntries } from "@/lib/taken/parse";
 import type { Source, Task } from "@/lib/taken/types";
 import { ArrowUpIcon, MicIcon } from "./icons";
-import { useTaken } from "./TakenContext";
+import { useAreas, useTakenActions, useTakenData } from "./TakenContext";
 import { useSpeech } from "./useSpeech";
 
 // Eén zin typen of inspreken; de herkende stukjes verschijnen meteen als chips.
 
 export default function QuickAdd() {
-  const { addRef, addTasks, today, notify } = useTaken();
+  const { list: areas } = useAreas();
+  const { addRef, today } = useTakenData();
+  const { addTasks, notify } = useTakenActions();
   const [text, setText] = useState("");
   const [source, setSource] = useState<Source>("handmatig");
   const [busy, setBusy] = useState(false);
 
   const entries = useMemo(
-    () => splitEntries(text).map((entry) => parseTask(entry, today)).filter((p) => p.title),
-    [text, today]
+    () => splitEntries(text).map((entry) => parseTask(entry, today, areas)).filter((p) => p.title),
+    [text, today, areas]
   );
 
   const save = async () => {
@@ -36,6 +38,15 @@ export default function QuickAdd() {
       setBusy(false);
     }
   };
+
+  // Snelkoppeling "Nieuwe taak" op het app-icoon (/app?nieuw=1): meteen typen.
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    if (url.searchParams.get("nieuw") !== "1") return;
+    url.searchParams.delete("nieuw");
+    window.history.replaceState(null, "", url.pathname + url.search);
+    setTimeout(() => addRef.current?.focus(), 50);
+  }, [addRef]);
 
   const speech = useSpeech((spoken, final) => {
     setText(spoken);

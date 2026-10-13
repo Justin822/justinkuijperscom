@@ -1,4 +1,8 @@
-import { canEdit, googleConfigured } from "./google";
+import { areasOf } from "./config";
+import { canEdit, canReadMail, googleConfigured } from "./google";
+import { pushConfigured, pushPublicKey } from "./push";
+import { DEFAULT_PUSH } from "./push-messages";
+import { schedulingAvailable } from "./qstash";
 import type { PublicSettings, Settings } from "./types";
 
 // Wat de browser van de instellingen mag zien: geen tokens en geen volledige agenda-links.
@@ -13,7 +17,8 @@ function maskUrl(url: string) {
   }
 }
 
-export function publicSettings(s: Settings): PublicSettings {
+/** `devices`: aantal apparaten met pushmeldingen (komt uit een aparte lijst). */
+export function publicSettings(s: Settings, devices = 0): PublicSettings {
   return {
     icsSources: s.icsSources.map(({ id, name, url }) => ({ id, name, preview: maskUrl(url) })),
     workday: s.workday,
@@ -26,6 +31,23 @@ export function publicSettings(s: Settings): PublicSettings {
       planner: Boolean(s.google?.plannerCalendarId),
       canEdit: canEdit(s.google),
       defaultCalendarId: s.google?.defaultCalendarId || null,
+    },
+    captureTokens: (s.captureTokens || []).map(({ id, name, createdAt, lastUsedAt }) => ({ id, name, createdAt, lastUsedAt })),
+    mail: {
+      available: canReadMail(s.google),
+      enabled: Boolean(s.mail?.enabled),
+      lastRunAt: s.mail?.lastRunAt ?? null,
+      lastError: s.mail?.lastError ?? null,
+      lastCount: s.mail?.lastCount ?? 0,
+    },
+    areas: areasOf(s),
+    push: {
+      ...DEFAULT_PUSH,
+      ...(s.push || {}),
+      configured: pushConfigured(),
+      publicKey: pushPublicKey(),
+      scheduled: schedulingAvailable(),
+      devices,
     },
   };
 }
