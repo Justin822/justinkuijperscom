@@ -2,6 +2,7 @@
 
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
+import { httpShortcutsExport } from "@/lib/taken/http-shortcuts";
 import type { PublicSettings } from "@/lib/taken/types";
 import { TrashIcon } from "../../_components/icons";
 import PageHeader from "../../_components/PageHeader";
@@ -18,6 +19,17 @@ const FLASH: Record<string, string> = {
 type SessionRow = { id: string; device: string; createdAt: number; lastSeenAt: number; current: boolean };
 
 const shortDate = (ms: number) => new Date(ms).toLocaleDateString("nl-NL", { day: "numeric", month: "short", year: "numeric" });
+
+/** Het importbestand voor HTTP Shortcuts, met de sleutel erin; alleen nu te maken, want de sleutel zie je één keer. */
+function downloadShortcuts(token: string) {
+  const json = JSON.stringify(httpShortcutsExport(window.location.origin, token), null, 2);
+  const url = URL.createObjectURL(new Blob([json], { type: "application/json" }));
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "planner-snelknoppen.json";
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
 
 function Section({ title, intro, children }: { title: string; intro?: React.ReactNode; children: React.ReactNode }) {
   return (
@@ -377,12 +389,25 @@ export default function SettingsPage() {
               >
                 Kopieer sleutel
               </button>
+              <button type="button" className="tk-btn tk-btn-ghost tk-btn-sm" onClick={() => downloadShortcuts(newKey)}>
+                Download voor HTTP Shortcuts
+              </button>
               <button type="button" className="tk-btn tk-btn-ghost tk-btn-sm" onClick={() => setNewKey(null)}>
                 Klaar
               </button>
             </div>
             <div className="tk-muted mt-4 leading-6">
-              <strong className="text-[color:var(--text)]">Zo stel je het in (Android, app HTTP Shortcuts):</strong>
+              <strong className="text-[color:var(--text)]">Snelst (Android):</strong>
+              <ol className="ml-5 list-decimal">
+                <li>Installeer <strong>HTTP Shortcuts</strong> uit de Play Store</li>
+                <li>Tik hierboven op <em>Download voor HTTP Shortcuts</em> (doe dit op je telefoon)</li>
+                <li>In HTTP Shortcuts: menu ⋮ → Importeren/exporteren → Importeren uit bestand → kies <code>planner-snelknoppen.json</code></li>
+                <li>Houd <em>Zet in Planner</em> ingedrukt om hem op je startscherm te zetten; als tegel voeg je hem toe via de snelle instellingen (potloodje). Delen vanuit een andere app werkt meteen.</li>
+              </ol>
+              Het bestand bevat je sleutel: deel het met niemand.
+            </div>
+            <details className="tk-muted mt-3 leading-6">
+              <summary className="cursor-pointer">Liever zelf instellen</summary>
               <ol className="ml-5 list-decimal">
                 <li>Nieuwe snelkoppeling → methode <code>POST</code>, URL <code className="break-all">{`${window.location.origin}/api/taken/capture?format=text`}</code></li>
                 <li>Header <code>Authorization</code> met waarde <code>Bearer</code>, een spatie en de sleutel</li>
@@ -390,7 +415,7 @@ export default function SettingsPage() {
                 <li>Antwoord tonen als melding: je ziet meteen wat er in je Inbox staat</li>
               </ol>
               Je top 3 lezen kan met <code>GET</code> op <code>/api/taken/capture/today?format=text</code>. Begin een regel met <code>notitie:</code> voor een notitie.
-            </div>
+            </details>
           </div>
         ) : (
           <form

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { parseTask, splitEntries } from "@/lib/taken/parse";
 import type { Source, Task } from "@/lib/taken/types";
 import { ArrowUpIcon, MicIcon } from "./icons";
@@ -36,6 +36,15 @@ export default function QuickAdd() {
       setBusy(false);
     }
   };
+
+  // Snelkoppeling "Nieuwe taak" op het app-icoon (/app?nieuw=1): meteen typen.
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    if (url.searchParams.get("nieuw") !== "1") return;
+    url.searchParams.delete("nieuw");
+    window.history.replaceState(null, "", url.pathname + url.search);
+    setTimeout(() => addRef.current?.focus(), 50);
+  }, [addRef]);
 
   const speech = useSpeech((spoken, final) => {
     setText(spoken);

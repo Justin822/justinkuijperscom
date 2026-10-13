@@ -94,7 +94,9 @@ Bij een terugkerende taak staat de volgende keer klaar zodra je hem afvinkt. Mee
 
 ### Snel invoeren van buiten de app
 
-Met een sleutel uit **Instellingen → Snel invoeren** zet je taken in je Inbox zonder de app te openen, bijv. met de Android-app **HTTP Shortcuts** (knop op je startscherm, tegel in je snelle instellingen of via het deelmenu).
+**Deelmenu (Android):** installeer de Planner via Chrome (menu → App installeren). Daarna staat Planner in het deelmenu van elke app: je ziet wat er herkend is en zet het met één tik in je Inbox. Lang drukken op het app-icoon geeft snelkoppelingen: Nieuwe taak, Inbox, Week en Notities.
+
+**Zonder de app te openen:** met een sleutel uit **Instellingen → Snel invoeren** en de Android-app **HTTP Shortcuts**. Na het aanmaken van een sleutel download je een importbestand met twee snelknoppen: *Zet in Planner* (typen of inspreken; ook als tegel in je snelle instellingen en in het deelmenu) en *Mijn top 3*.
 
 - `POST /api/taken/capture` met header `Authorization: Bearer <sleutel>`
   - body als platte tekst, formulier of JSON: `{ "text": "...", "title": "...", "url": "...", "note": "...", "source": "gedeeld" }`
